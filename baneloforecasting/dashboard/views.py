@@ -1821,10 +1821,50 @@ def delete_recipe_api(request):
 
 @login_required
 def inventory_forecasting_view(request):
-    """ML-based inventory forecasting using LOCAL DATABASE - FIXED VERSION"""
+    """ML-based inventory forecasting using LOCAL DATABASE - IMPROVED VERSION"""
     try:
         print("\n🤖 ML INVENTORY FORECASTING VIEW (LOCAL DB)")
-        
+
+        # ========================================
+        # DATA VALIDATION & DIAGNOSTICS
+        # ========================================
+        sales_count = Sale.objects.count()
+        products_count = Product.objects.count()
+        predictions_count = MLPrediction.objects.count()
+
+        print(f"📊 Data Status:")
+        print(f"   Sales: {sales_count}")
+        print(f"   Products: {products_count}")
+        print(f"   Predictions: {predictions_count}")
+
+        # Check data requirements
+        data_issues = []
+        if sales_count == 0:
+            data_issues.append({
+                'type': 'no_sales',
+                'title': 'No Sales Data',
+                'message': 'You need sales history to train the forecasting model.',
+                'action': 'Add sales records or sync from Firebase',
+                'command': 'python sync_firebase_to_local.py'
+            })
+        elif sales_count < 30:
+            data_issues.append({
+                'type': 'insufficient_sales',
+                'title': 'Insufficient Sales Data',
+                'message': f'You have only {sales_count} sales records. At least 30 records recommended for accurate predictions.',
+                'action': 'Add more sales data or wait for more transactions',
+                'command': None
+            })
+
+        if products_count == 0:
+            data_issues.append({
+                'type': 'no_products',
+                'title': 'No Products',
+                'message': 'You need products in your inventory to forecast.',
+                'action': 'Add products or sync from Firebase',
+                'command': 'python sync_firebase_to_local.py'
+            })
+
         # ========================================
         # 1. GET MODEL STATUS
         # ========================================
@@ -1834,15 +1874,28 @@ def inventory_forecasting_view(request):
                 'is_trained': ml_model.is_trained,
                 'last_trained': ml_model.last_trained,
                 'accuracy': ml_model.accuracy,
-                'total_records': ml_model.total_records
+                'total_records': ml_model.total_records,
+                'model_name': ml_model.name,
+                'model_type': ml_model.model_type,
+                'products_analyzed': ml_model.products_analyzed
             }
         except MLModel.DoesNotExist:
             model_status = {
                 'is_trained': False,
                 'last_trained': None,
                 'accuracy': 0,
-                'total_records': 0
+                'total_records': 0,
+                'model_name': 'Not trained yet',
+                'model_type': 'N/A',
+                'products_analyzed': 0
             }
+            data_issues.append({
+                'type': 'no_model',
+                'title': 'Model Not Trained',
+                'message': 'No ML model has been trained yet.',
+                'action': 'Click "Train Model" button below or use Google Colab for better accuracy',
+                'command': None
+            })
         
         # ========================================
         # 2. GET ALL PRODUCTS AND BUILD FORECAST DATA
@@ -1978,34 +2031,57 @@ def inventory_forecasting_view(request):
         print(f"   Healthy: {summary['healthy']}")
         print(f"   Needs Reorder: {summary['needs_reorder']}")
         print(f"{'='*60}\n")
-        
+
         context = {
             'forecast_data': forecast_data,
             'model_status': model_status,
-            'summary': summary
+            'summary': summary,
+            'data_issues': data_issues,
+            'data_status': {
+                'sales_count': sales_count,
+                'products_count': products_count,
+                'predictions_count': predictions_count,
+                'has_issues': len(data_issues) > 0
+            }
         }
-        
+
         return render(request, 'dashboard/inventory_forecasting.html', context)
         
     except Exception as e:
         print(f"❌ Error in inventory_forecasting_view: {str(e)}")
         import traceback
         traceback.print_exc()
-        
-        # Return empty context on error
+
+        # Return empty context on error with error message
         return render(request, 'dashboard/inventory_forecasting.html', {
             'forecast_data': [],
             'model_status': {
                 'is_trained': False,
                 'last_trained': None,
                 'accuracy': 0,
-                'total_records': 0
+                'total_records': 0,
+                'model_name': 'Error',
+                'model_type': 'N/A',
+                'products_analyzed': 0
             },
             'summary': {
                 'critical': 0,
                 'low': 0,
                 'healthy': 0,
                 'needs_reorder': 0
+            },
+            'data_issues': [{
+                'type': 'error',
+                'title': 'System Error',
+                'message': f'An error occurred while loading forecasting data: {str(e)}',
+                'action': 'Please check your database connection and try again',
+                'command': None
+            }],
+            'data_status': {
+                'sales_count': 0,
+                'products_count': 0,
+                'predictions_count': 0,
+                'has_issues': True
             }
         })
 
