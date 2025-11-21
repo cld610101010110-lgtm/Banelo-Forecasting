@@ -1,0 +1,1153 @@
+﻿{% extends 'dashboard/base.html' %}
+{% load static %}
+{% block title %}Recipe Management - Banelo Coffee POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #F5F5F5;
+        overflow-x: hidden;
+    }
+
+    /* Top Bar */
+    .top-bar {
+        background: white;
+        padding: 20px 30px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        color: #3E2723;
+        font-weight: 600;
+    }
+
+    .btn-add-recipe {
+        background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(216, 67, 21, 0.3);
+    }
+
+        .btn-add-recipe:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(216, 67, 21, 0.4);
+        }
+
+    /* Recipe Grid */
+    .recipes-container {
+        padding: 0 30px 30px;
+    }
+
+    .recipes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 25px;
+    }
+
+    /* Recipe Card */
+    .recipe-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+        position: relative;
+    }
+
+        .recipe-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+    .recipe-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #FFF3E0;
+    }
+
+    .recipe-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #3E2723;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .recipe-name i {
+            color: #D84315;
+        }
+
+    .recipe-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+        font-size: 14px;
+    }
+
+    .btn-edit {
+        background: #4CAF50;
+        color: white;
+    }
+
+        .btn-edit:hover {
+            background: #388E3C;
+            transform: scale(1.1);
+        }
+
+    .btn-delete {
+        background: #F44336;
+        color: white;
+    }
+
+        .btn-delete:hover {
+            background: #C62828;
+            transform: scale(1.1);
+        }
+
+    /* Ingredients List */
+    .ingredients-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #666;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .ingredients-label i {
+            color: #8D6E63;
+        }
+
+    .ingredients-list {
+        list-style: none;
+    }
+
+    .ingredient-item {
+        padding: 10px 12px;
+        background: #FFF8F0;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s;
+    }
+
+        .ingredient-item:hover {
+            background: #FFE0B2;
+        }
+
+    .ingredient-name {
+        font-weight: 500;
+        color: #3E2723;
+    }
+
+    .ingredient-quantity {
+        color: #D84315;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+    }
+
+        .empty-state i {
+            font-size: 80px;
+            color: #E0E0E0;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #999;
+            margin-bottom: 30px;
+        }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+        .modal.active {
+            display: flex;
+        }
+
+    .modal-content {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #FFF3E0;
+    }
+
+    .modal-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #3E2723;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 28px;
+        cursor: pointer;
+        color: #999;
+        transition: all 0.3s;
+    }
+
+        .btn-close:hover {
+            color: #F44336;
+            transform: rotate(90deg);
+        }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #3E2723;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid #E0E0E0;
+        border-radius: 10px;
+        font-size: 15px;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #8D6E63;
+        }
+
+    /* Ingredients Section in Modal */
+    .ingredients-section {
+        margin-top: 25px;
+        padding: 20px;
+        background: #FFF8F0;
+        border-radius: 12px;
+    }
+
+    .ingredients-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .ingredients-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #3E2723;
+    }
+
+    .btn-add-ingredient {
+        background: #8D6E63;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.3s;
+    }
+
+        .btn-add-ingredient:hover {
+            background: #6D4C41;
+        }
+
+    .ingredient-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+        align-items: flex-start;
+    }
+
+        .ingredient-row select {
+            flex: 2;
+        }
+
+        .ingredient-row input {
+            flex: 1;
+        }
+
+    .btn-remove-ingredient {
+        background: #F44336;
+        color: white;
+        border: none;
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+        margin-top: 2px;
+    }
+
+        .btn-remove-ingredient:hover {
+            background: #C62828;
+        }
+
+    .btn-submit {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(216, 67, 21, 0.3);
+        margin-top: 20px;
+    }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(216, 67, 21, 0.4);
+        }
+
+    /* Notification Modal */
+    .notification-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(62, 39, 35, 0.85);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(5px);
+    }
+
+        .notification-overlay.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .notification-box {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 100%);
+        border-radius: 25px;
+        padding: 50px 40px;
+        max-width: 450px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        border: 3px solid #D84315;
+        animation: slideDown 0.4s ease;
+    }
+
+    @keyframes slideDown {
+        from {
+            transform: translateY(-100px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .notification-icon {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 25px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 50px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+        .notification-icon.success {
+            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+            color: white;
+        }
+
+        .notification-icon.error {
+            background: linear-gradient(135deg, #F44336 0%, #C62828 100%);
+            color: white;
+        }
+
+    .notification-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #3E2723;
+        margin-bottom: 15px;
+    }
+
+    .notification-message {
+        font-size: 18px;
+        color: #5D4037;
+        margin-bottom: 30px;
+        line-height: 1.6;
+    }
+
+    .notification-btn {
+        background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+        color: white;
+        border: none;
+        padding: 15px 50px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 18px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 5px 20px rgba(216, 67, 21, 0.4);
+    }
+
+        .notification-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(216, 67, 21, 0.5);
+        }
+
+    /* Confirmation Modal */
+    .confirm-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(62, 39, 35, 0.85);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(5px);
+    }
+
+        .confirm-overlay.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+    .confirm-box {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 100%);
+        border-radius: 25px;
+        padding: 40px 35px;
+        max-width: 450px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        border: 3px solid #FF9800;
+        animation: slideDown 0.4s ease;
+    }
+
+    .confirm-icon {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 25px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 50px;
+        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        color: white;
+        box-shadow: 0 10px 30px rgba(255, 152, 0, 0.3);
+    }
+
+    .confirm-title {
+        font-size: 26px;
+        font-weight: 700;
+        color: #3E2723;
+        margin-bottom: 15px;
+    }
+
+    .confirm-message {
+        font-size: 16px;
+        color: #5D4037;
+        margin-bottom: 10px;
+        line-height: 1.6;
+    }
+
+    .confirm-recipe-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #D84315;
+        margin-bottom: 10px;
+    }
+
+    .confirm-warning {
+        font-size: 14px;
+        color: #F57C00;
+        margin-bottom: 30px;
+        font-style: italic;
+    }
+
+    .confirm-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+    }
+
+    .confirm-btn-yes {
+        background: linear-gradient(135deg, #F44336 0%, #C62828 100%);
+        color: white;
+        border: none;
+        padding: 14px 35px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 5px 20px rgba(244, 67, 54, 0.4);
+    }
+
+        .confirm-btn-yes:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(244, 67, 54, 0.5);
+        }
+
+    .confirm-btn-cancel {
+        background: linear-gradient(135deg, #757575 0%, #616161 100%);
+        color: white;
+        border: none;
+        padding: 14px 35px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 5px 20px rgba(117, 117, 117, 0.4);
+    }
+
+        .confirm-btn-cancel:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(117, 117, 117, 0.5);
+        }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .recipes-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ingredient-row {
+            flex-direction: column;
+        }
+
+            .ingredient-row select,
+            .ingredient-row input {
+                width: 100%;
+            }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top Bar -->
+<div class="top-bar">
+    <h1 class="page-title"><i class="fas fa-mortar-pestle"></i> Recipe Management</h1>
+    <div style="display: flex; gap: 15px; align-items: center; flex: 1; max-width: 600px;">
+        <div style="position: relative; flex: 1;">
+            <i class="fas fa-search" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="searchRecipes" placeholder="Search recipes..."
+                   style="width: 100%; padding: 12px 15px 12px 45px; border: 2px solid #E0E0E0; border-radius: 8px; font-size: 15px;">
+        </div>
+    </div>
+    <button class="btn-add-recipe" onclick="openAddModal()">
+        <i class="fas fa-plus"></i>
+        Add Recipe
+    </button>
+</div>
+
+<!-- Recipes Container -->
+<div class="recipes-container">
+    {% if recipes %}
+    <div class="recipes-grid">
+        {% for recipe in recipes %}
+        <div class="recipe-card">
+            <div class="recipe-header">
+                <div class="recipe-name">
+                    <i class="fas fa-coffee"></i>
+                    {{ recipe.productName }}
+                </div>
+                <div class="recipe-actions">
+                    <button class="btn-icon btn-edit"
+                            onclick="editRecipe('{{ recipe.id }}', '{{ recipe.productName }}', '{{ recipe.productFirebaseId }}', {{ recipe.ingredients|safe }})"
+                            title="Edit Recipe">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button class="btn-icon btn-delete"
+                            onclick="deleteRecipe('{{ recipe.id }}', '{{ recipe.productName }}')"
+                            title="Delete Recipe">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="ingredients-label">
+                <i class="fas fa-list"></i>
+                Ingredients ({{ recipe.ingredientCount }})
+            </div>
+
+            <ul class="ingredients-list">
+                {% for ingredient in recipe.ingredients %}
+                <li class="ingredient-item">
+                    <span class="ingredient-name">{{ ingredient.name }}</span>
+                    <span class="ingredient-quantity">{{ ingredient.quantity }} {{ ingredient.unit }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-mortar-pestle"></i>
+        <h3>No Recipes Yet</h3>
+        <p>Start by adding your first beverage recipe with ingredients</p>
+        <button class="btn-add-recipe" onclick="openAddModal()">
+            <i class="fas fa-plus"></i>
+            Add Your First Recipe
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Recipe Modal -->
+<div class="modal" id="recipeModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalTitle">Add Recipe</h2>
+            <button class="btn-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form id="recipeForm">
+            <!-- Product Selection -->
+            <div class="form-group">
+                <label class="form-label">Select Beverage Product</label>
+                <select class="form-control" id="productSelect" required>
+                    <option value="">Choose a beverage...</option>
+                    {% for beverage in beverages %}
+                    <option value="{{ beverage.id }}">{{ beverage.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Ingredients Section -->
+            <div class="ingredients-section">
+                <div class="ingredients-section-header">
+                    <h3 class="ingredients-section-title">Recipe Ingredients</h3>
+                    <button type="button" class="btn-add-ingredient" onclick="addIngredientRow()">
+                        <i class="fas fa-plus"></i>
+                        Add Ingredient
+                    </button>
+                </div>
+
+                <div id="ingredientsContainer">
+                    <!-- Ingredient rows will be added here dynamically -->
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+                <i class="fas fa-save"></i> Save Recipe
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Notification Modal -->
+<div class="notification-overlay" id="notificationOverlay">
+    <div class="notification-box">
+        <div class="notification-icon" id="notificationIcon">
+            <i class="fas fa-check"></i>
+        </div>
+        <h2 class="notification-title" id="notificationTitle">Success!</h2>
+        <p class="notification-message" id="notificationMessage">Operation completed successfully.</p>
+        <button class="notification-btn" onclick="closeNotification()">
+            <i class="fas fa-check-circle"></i> OK
+        </button>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <div class="confirm-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h2 class="confirm-title">Confirm Deletion</h2>
+        <p class="confirm-message">Are you sure you want to delete the recipe for</p>
+        <p class="confirm-recipe-name" id="confirmRecipeName">"Recipe Name"</p>
+        <p class="confirm-warning">This action cannot be undone.</p>
+        <div class="confirm-buttons">
+            <button class="confirm-btn-yes" id="confirmYesBtn">
+                <i class="fas fa-trash-alt"></i> Yes, Delete
+            </button>
+            <button class="confirm-btn-cancel" onclick="closeConfirm()">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Available ingredients from Django context
+const availableIngredients = {{ ingredients|safe }};
+
+let currentEditId = null;
+let ingredientCounter = 0;
+
+// ============ MODAL FUNCTIONS ============
+
+function openAddModal() {
+    currentEditId = null;
+    document.getElementById('recipeModal').classList.add('active');
+    document.getElementById('modalTitle').textContent = 'Add Recipe';
+    document.getElementById('recipeForm').reset();
+    document.getElementById('ingredientsContainer').innerHTML = '';
+    addIngredientRow(); // Add first ingredient row
+}
+
+function closeModal() {
+    document.getElementById('recipeModal').classList.remove('active');
+    currentEditId = null;
+}
+
+function editRecipe(id, productName, productFirebaseId, ingredients) {
+    currentEditId = id;
+    document.getElementById('recipeModal').classList.add('active');
+    document.getElementById('modalTitle').textContent = 'Edit Recipe';
+
+    // Set product
+    document.getElementById('productSelect').value = productFirebaseId;
+
+    // Clear and populate ingredients
+    document.getElementById('ingredientsContainer').innerHTML = '';
+
+    // Parse ingredients if string
+    let ingredientsList = ingredients;
+    if (typeof ingredients === 'string') {
+        ingredientsList = JSON.parse(ingredients.replace(/'/g, '"'));
+    }
+
+    ingredientsList.forEach(ing => {
+        addIngredientRow(ing.ingredientFirebaseId, ing.quantity);
+    });
+}
+
+// ============ INGREDIENT ROW MANAGEMENT ============
+
+function addIngredientRow(selectedIngredient = '', quantity = '') {
+    const container = document.getElementById('ingredientsContainer');
+    const rowId = `ingredient-${ingredientCounter++}`;
+
+    const row = document.createElement('div');
+    row.className = 'ingredient-row';
+    row.id = rowId;
+
+    row.innerHTML = `
+        <select class="form-control" name="ingredient[]" required>
+            <option value="">Select ingredient...</option>
+            ${availableIngredients.map(ing =>
+                `<option value="${ing.id}" ${ing.id === selectedIngredient ? 'selected' : ''}>
+                    ${ing.name} (Stock: ${ing.stock}g)
+                </option>`
+            ).join('')}
+        </select>
+        <input type="number" class="form-control" name="quantity[]"
+               placeholder="Quantity (g)" min="1" step="0.1"
+               value="${quantity}" required>
+        <button type="button" class="btn-remove-ingredient" onclick="removeIngredientRow('${rowId}')">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    container.appendChild(row);
+}
+
+function removeIngredientRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) {
+        row.remove();
+    }
+}
+
+// ============ FORM SUBMISSION ============
+
+document.getElementById('recipeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitBtn = e.target.querySelector('.btn-submit');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    submitBtn.disabled = true;
+
+    try {
+        const productFirebaseId = document.getElementById('productSelect').value;
+        const productName = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex].text;
+
+        // Get ingredients
+        const ingredientSelects = document.querySelectorAll('select[name="ingredient[]"]');
+        const quantityInputs = document.querySelectorAll('input[name="quantity[]"]');
+
+        const ingredients = [];
+        ingredientSelects.forEach((select, index) => {
+            if (select.value && quantityInputs[index].value) {
+                const ingredientName = select.options[select.selectedIndex].text.split(' (Stock:')[0];
+                ingredients.push({
+                    ingredientFirebaseId: select.value,
+                    ingredientName: ingredientName,
+                    quantityNeeded: parseFloat(quantityInputs[index].value),
+                    unit: 'g'
+                });
+            }
+        });
+
+        if (ingredients.length === 0) {
+            showNotification('Please add at least one ingredient', 'error');
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            return;
+        }
+
+        const recipeData = {
+            productFirebaseId: productFirebaseId,
+            productName: productName,
+            ingredients: ingredients,
+            recipeId: currentEditId
+        };
+
+        const url = currentEditId ? '/dashboard/api/recipes/update/' : '/dashboard/api/recipes/add/';
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(recipeData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            closeModal();
+            showNotification(result.message, 'success');
+        } else {
+            showNotification(result.message, 'error');
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to save recipe. Please try again.', 'error');
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+});
+
+// ============ DELETE RECIPE ============
+
+let confirmCallback = null;
+
+function deleteRecipe(id, productName) {
+    showConfirm(productName, async function() {
+        try {
+            const response = await fetch('/dashboard/api/recipes/delete/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ recipeId: id })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification(result.message, 'success');
+            } else {
+                showNotification(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Failed to delete recipe. Please try again.', 'error');
+        }
+    });
+}
+
+// ============ NOTIFICATION FUNCTIONS ============
+
+function showNotification(message, type = 'success') {
+    const overlay = document.getElementById('notificationOverlay');
+    const icon = document.getElementById('notificationIcon');
+    const title = document.getElementById('notificationTitle');
+    const messageEl = document.getElementById('notificationMessage');
+
+    if (type === 'success') {
+        icon.className = 'notification-icon success';
+        icon.innerHTML = '<i class="fas fa-check"></i>';
+        title.textContent = 'Success!';
+    } else {
+        icon.className = 'notification-icon error';
+        icon.innerHTML = '<i class="fas fa-times"></i>';
+        title.textContent = 'Error';
+    }
+
+    messageEl.textContent = message;
+    overlay.classList.add('active');
+}
+
+function closeNotification() {
+    const overlay = document.getElementById('notificationOverlay');
+    overlay.classList.remove('active');
+
+    // Reload page after closing success notification
+    const icon = document.getElementById('notificationIcon');
+    if (icon.classList.contains('success')) {
+        setTimeout(() => {
+            location.reload();
+        }, 300);
+    }
+}
+
+// ============ CONFIRMATION FUNCTIONS ============
+
+function showConfirm(recipeName, onConfirm) {
+    const overlay = document.getElementById('confirmOverlay');
+    const recipeNameEl = document.getElementById('confirmRecipeName');
+
+    recipeNameEl.textContent = `"${recipeName}"`;
+    confirmCallback = onConfirm;
+
+    overlay.classList.add('active');
+}
+
+function closeConfirm() {
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.remove('active');
+    confirmCallback = null;
+}
+
+function handleConfirmYes() {
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    closeConfirm();
+}
+
+// ============ UTILITY FUNCTIONS ============
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// ============ EVENT LISTENERS ============
+
+// Close modal when clicking outside
+document.getElementById('recipeModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeModal();
+    }
+});
+
+// Close notification when clicking outside
+document.getElementById('notificationOverlay').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeNotification();
+    }
+});
+
+// Close confirmation when clicking outside
+document.getElementById('confirmOverlay').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeConfirm();
+    }
+});
+
+// Attach confirm yes button handler
+    document.getElementById('confirmYesBtn').addEventListener('click', handleConfirmYes);
+
+    // ============================================
+    // SEARCH FUNCTIONALITY
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('searchRecipes');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function (e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                const recipeCards = document.querySelectorAll('.recipe-card');
+                const recipesGrid = document.querySelector('.recipes-grid');
+
+                console.log('🔍 Searching for:', searchTerm);
+
+                let visibleCount = 0;
+
+                recipeCards.forEach(card => {
+                    // Get recipe name ONLY (not ingredients)
+                    const recipeNameElement = card.querySelector('.recipe-name');
+                    const recipeName = recipeNameElement ? recipeNameElement.textContent.toLowerCase().trim() : '';
+
+                    console.log('Checking recipe:', recipeName, 'against:', searchTerm);
+
+                    // Check if recipe name includes search term
+                    const matches = recipeName.includes(searchTerm);
+
+                    // Show card if search is empty OR if recipe name matches
+                    if (searchTerm === '') {
+                        card.style.display = '';
+                        visibleCount++;
+                    } else if (matches) {
+                        card.style.display = '';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                console.log(`✅ Found ${visibleCount} matching recipes out of ${recipeCards.length} total`);
+
+                // Handle "no results" message
+                let noResultsMsg = document.getElementById('noResultsMessage');
+
+                if (visibleCount === 0 && searchTerm !== '' && recipesGrid) {
+                    if (!noResultsMsg) {
+                        noResultsMsg = document.createElement('div');
+                        noResultsMsg.id = 'noResultsMessage';
+                        noResultsMsg.style.cssText = `
+                        grid-column: 1 / -1;
+                        text-align: center;
+                        padding: 60px 20px;
+                        color: #666;
+                        font-size: 18px;
+                        background: white;
+                        border-radius: 15px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                    `;
+                        noResultsMsg.innerHTML = `
+                        <i class="fas fa-search" style="font-size: 48px; color: #ddd; margin-bottom: 20px; display: block;"></i>
+                        <p>No recipes found for "<strong>${searchTerm}</strong>"</p>
+                        <p style="font-size: 14px; margin-top: 10px; color: #999;">Try searching for a different recipe name</p>
+                    `;
+                        recipesGrid.appendChild(noResultsMsg);
+                    } else {
+                        noResultsMsg.querySelector('strong').textContent = searchTerm;
+                        noResultsMsg.style.display = '';
+                    }
+                } else if (noResultsMsg) {
+                    noResultsMsg.style.display = 'none';
+                }
+            });
+
+            console.log('✅ Search functionality initialized');
+        } else {
+            console.error('❌ Search input not found');
+        }
+    });
+</script>
+
+{% endblock %}

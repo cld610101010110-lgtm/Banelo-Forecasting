@@ -1,0 +1,498 @@
+﻿{% extends 'dashboard/base.html' %}
+{% block title %}Audit Trail - Coffee POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .audit-header {
+        margin-bottom: 2rem;
+    }
+
+    .audit-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .audit-subtitle {
+        color: #666;
+        font-size: 0.95rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid;
+    }
+
+        .stat-card.total {
+            border-left-color: #3498db;
+        }
+
+        .stat-card.today {
+            border-left-color: #2ecc71;
+        }
+
+        .stat-card.success {
+            border-left-color: #27ae60;
+        }
+
+        .stat-card.failed {
+            border-left-color: #e74c3c;
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card p {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+    .filters-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 0.625rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+            .filter-group input:focus,
+            .filter-group select:focus {
+                outline: none;
+                border-color: #8B4513;
+                box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+            }
+
+    .filter-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+        color: white;
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+        }
+
+    .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+    .btn-success {
+        background: #27ae60;
+        color: white;
+    }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+    .audit-table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .table-header {
+        padding: 1.5rem;
+        border-bottom: 2px solid #f3f4f6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .table-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .audit-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .audit-table thead {
+            background: #f9fafb;
+        }
+
+        .audit-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .audit-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.875rem;
+        }
+
+        .audit-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+            .audit-table tbody tr:hover {
+                background-color: #f9fafb;
+            }
+
+    .log-user {
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .log-action {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .action-sale_transaction {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .action-inventory_update {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .action-login {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .action-logout {
+        background: #fae8ff;
+        color: #7e22ce;
+    }
+
+    .action-product_add,
+    .action-product_edit,
+    .action-product_delete {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+
+    .action-failed_login {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .log-description {
+        color: #6b7280;
+    }
+
+    .log-timestamp {
+        color: #9ca3af;
+        font-size: 0.8125rem;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .status-success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+        .status-success::before {
+            content: '●';
+            color: #10b981;
+        }
+
+    .status-failed {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+        .status-failed::before {
+            content: '●';
+            color: #ef4444;
+        }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #9ca3af;
+    }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #6b7280;
+        }
+
+    .error-message {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border-left: 4px solid #ef4444;
+    }
+
+    @media (max-width: 768px) {
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-actions {
+            flex-direction: column;
+        }
+
+        .btn {
+            width: 100%;
+            text-align: center;
+        }
+
+        .table-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .audit-table {
+            display: block;
+            overflow-x: auto;
+        }
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-header">
+    <h1 class="audit-title">
+        📋 Audit Trail
+    </h1>
+    <p class="audit-subtitle">Monitor all system activities and user actions from your Coffee POS</p>
+</div>
+
+<!-- Display Error Message if Any -->
+{% if error %}
+<div class="error-message">
+    <strong>⚠️ Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+<!-- Statistics Cards -->
+<div class="stats-grid">
+    <div class="stat-card total">
+        <h3>Total Logs</h3>
+        <p>{{ total_logs|default:0 }}</p>
+    </div>
+    <div class="stat-card today">
+        <h3>Today's Activities</h3>
+        <p>{{ today_activities|default:0 }}</p>
+    </div>
+    <div class="stat-card success">
+        <h3>Success Rate</h3>
+        <p>{{ success_rate|default:0 }}%</p>
+    </div>
+    <div class="stat-card failed">
+        <h3>Failed Actions</h3>
+        <p>{{ failed_actions|default:0 }}</p>
+    </div>
+</div>
+
+<!-- Filters Section -->
+<div class="filters-section">
+    <form method="GET" action="{% url 'audit_trail' %}">
+        <div class="filters-grid">
+            <div class="filter-group">
+                <label for="filterUser">User</label>
+                <select id="filterUser" name="user">
+                    <option value="">All Users</option>
+                    {% for username in users %}
+                    <option value="{{ username }}" {% if filter_user == username %}selected{% endif %}>
+                        {{ username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filterAction">Action Type</label>
+                <select id="filterAction" name="action">
+                    <option value="LOGIN" {% if filter_action == "LOGIN" %}selected{% endif %}>Login</option>
+                    <option value="LOGOUT" {% if filter_action == "LOGOUT" %}selected{% endif %}>Logout</option>
+                    <option value="FAILED_LOGIN" {% if filter_action == "FAILED_LOGIN" %}selected{% endif %}>Failed Login</option>
+                    <option value="SALE_TRANSACTION" {% if filter_action == "SALE_TRANSACTION" %}selected{% endif %}>Sale Transaction</option>
+                    <option value="PRODUCT_ADD" {% if filter_action == "PRODUCT_ADD" %}selected{% endif %}>Product Add</option>
+                    <option value="PRODUCT_EDIT" {% if filter_action == "PRODUCT_EDIT" %}selected{% endif %}>Product Edit</option>
+                    <option value="PRODUCT_DELETE" {% if filter_action == "PRODUCT_DELETE" %}selected{% endif %}>Product Delete</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="dateFrom">Date From</label>
+                <input type="date" id="dateFrom" name="date_from" value="{{ filter_date_from }}">
+            </div>
+
+            <div class="filter-group">
+                <label for="dateTo">Date To</label>
+                <input type="date" id="dateTo" name="date_to" value="{{ filter_date_to }}">
+            </div>
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+                🔍 Apply Filters
+            </button>
+            <a href="{% url 'audit_trail' %}" class="btn btn-secondary">
+                🔄 Clear Filters
+            </a>
+            <a href="{% url 'export_audit_trail_csv' %}?user={{ filter_user }}&action={{ filter_action }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}"
+               class="btn btn-success">
+                <i class="fas fa-download"></i> Export CSV
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Audit Trail Table -->
+<div class="audit-table-container">
+    <div class="table-header">
+        <h2 class="table-title">Activity Log</h2>
+    </div>
+
+    {% if audit_logs %}
+    <table class="audit-table">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Action</th>
+                <th>Description</th>
+                <th>Timestamp</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in audit_logs %}
+            <tr>
+                <td>
+                    <span class="log-user">{{ log.user }}</span>
+                </td>
+                <td>
+                    <span class="log-action action-{{ log.action|lower }}">
+                        {{ log.action }}
+                    </span>
+                </td>
+                <td>
+                    <span class="log-description">{{ log.description }}</span>
+                </td>
+                <td>
+                    <span class="log-timestamp">{{ log.timestamp }}</span>
+                </td>
+                <td>
+                    <span class="status-badge status-{{ log.status|lower }}">
+                        {{ log.status }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <i>📋</i>
+        <h3>No Audit Logs Found</h3>
+        <p>{% if error %}Please check the error message above{% else %}No activity logs match your filters. Try adjusting the filters or clearing them.{% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

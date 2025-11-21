@@ -1,0 +1,1119 @@
+﻿{% extends 'accounts/base.html' %}
+{% load static %}
+{% block title %}Settings - Banelo Coffee POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    :root {
+        --bg-primary: #F5F5F5;
+        --bg-secondary: white;
+        --text-primary: #3E2723;
+        --text-secondary: #666;
+        --border-color: #E0E0E0;
+        --sidebar-bg: linear-gradient(180deg, #3E2723 0%, #4E342E 100%);
+        --card-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        --input-bg: white;
+    }
+
+    [data-theme="dark"] {
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #2d2d2d;
+        --text-primary: #e0e0e0;
+        --text-secondary: #b0b0b0;
+        --border-color: #404040;
+        --sidebar-bg: linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%);
+        --card-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        --input-bg: #3d3d3d;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: var(--bg-primary);
+        overflow-x: hidden;
+        transition: background-color 0.3s ease;
+    }
+
+    /* Sidebar Styles */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 250px;
+        background: linear-gradient(180deg, #3E2723 0%, #4E342E 100%);
+        color: white;
+        transition: all 0.3s ease;
+        z-index: 1000;
+        overflow-y: auto;
+    }
+
+        .sidebar.collapsed {
+            width: 70px;
+        }
+
+    .sidebar-header {
+        padding: 20px 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .logo-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        object-fit: cover;
+        background: white; /* Optional: adds white background behind logo */
+        padding: 5px; /* Optional: adds padding around logo */
+    }
+
+    .logo-text {
+        font-weight: 600;
+        font-size: 18px;
+        white-space: nowrap;
+        transition: opacity 0.3s;
+    }
+
+    .sidebar.collapsed .logo-text {
+        opacity: 0;
+        display: none;
+    }
+
+    .burger-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 5px;
+        transition: transform 0.3s;
+    }
+
+        .burger-btn:hover {
+            transform: scale(1.1);
+        }
+
+    .sidebar-menu {
+        list-style: none;
+        padding: 20px 0;
+    }
+
+    .menu-item {
+        margin: 5px 0;
+    }
+
+    .menu-link {
+        display: flex;
+        align-items: center;
+        padding: 15px 20px;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        transition: all 0.3s;
+        gap: 15px;
+    }
+
+        .menu-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .menu-link.active {
+            background: #D84315;
+            color: white;
+            border-left: 4px solid #FF6F00;
+        }
+
+    .menu-icon {
+        font-size: 20px;
+        width: 20px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .menu-text {
+        white-space: nowrap;
+        transition: opacity 0.3s;
+    }
+
+    .sidebar.collapsed .menu-text {
+        opacity: 0;
+        display: none;
+    }
+
+    /* Submenu Styles */
+    .submenu-arrow {
+        margin-left: auto;
+        font-size: 12px;
+        transition: transform 0.3s;
+    }
+
+    .menu-link.active .submenu-arrow {
+        transform: rotate(180deg);
+    }
+
+    .submenu {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+        .submenu.open {
+            max-height: 200px;
+        }
+
+    .submenu-item {
+        margin: 0;
+    }
+
+    .submenu-link {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px 12px 55px;
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        transition: all 0.3s;
+        gap: 12px;
+        font-size: 14px;
+    }
+
+        .submenu-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            padding-left: 60px;
+        }
+
+        .submenu-link.active {
+            background: rgba(216, 67, 21, 0.3);
+            color: white;
+            border-left: 3px solid #FF6F00;
+        }
+
+        .submenu-link i {
+            font-size: 14px;
+            width: 16px;
+        }
+
+    .sidebar.collapsed .submenu-arrow,
+    .sidebar.collapsed .submenu {
+        display: none;
+    }
+
+    .logout-section {
+        position: absolute;
+        bottom: 20px;
+        width: 100%;
+        padding: 0 10px;
+    }
+
+    .logout-btn {
+        width: calc(100% - 20px);
+        padding: 12px;
+        background: #D84315;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+        .logout-btn:hover {
+            background: #BF360C;
+            transform: translateY(-2px);
+        }
+
+    .sidebar.collapsed .logout-btn {
+        padding: 12px 10px;
+    }
+
+        .sidebar.collapsed .logout-btn .logout-text {
+            display: none;
+        }
+
+    /* Main Content */
+    .main-content {
+        margin-left: 250px;
+        transition: margin-left 0.3s ease;
+        min-height: 100vh;
+    }
+
+        .main-content.expanded {
+            margin-left: 70px;
+        }
+
+    /* Top Bar */
+    .top-bar {
+        background: var(--bg-secondary);
+        padding: 20px 30px;
+        box-shadow: var(--card-shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        transition: background-color 0.3s ease;
+    }
+
+    .page-title-bar {
+        font-size: 28px;
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .top-bar-actions {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .user-profile {
+        width: 40px;
+        height: 40px;
+        background: #D84315;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.3s;
+    }
+
+        .user-profile:hover {
+            transform: scale(1.1);
+        }
+
+    /* Settings Content */
+    .settings-content {
+        padding: 30px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 25px;
+    }
+
+    .settings-card {
+        background: var(--bg-secondary);
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: var(--card-shadow);
+        transition: all 0.3s;
+    }
+
+        .settings-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .card-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 20px;
+    }
+
+    .card-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        font-size: 15px;
+        transition: all 0.3s;
+        background: var(--input-bg);
+        color: var(--text-primary);
+    }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #8D6E63;
+            box-shadow: 0 0 0 3px rgba(141, 110, 99, 0.1);
+        }
+
+        .form-control:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+    /* Toggle Switch */
+    .setting-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+    .setting-info {
+        flex: 1;
+    }
+
+    .setting-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+        font-size: 15px;
+    }
+
+    .setting-desc {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+        background: var(--border-color);
+        border-radius: 50px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+        .toggle-switch.active {
+            background: #D84315;
+        }
+
+    .toggle-slider {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.3s;
+    }
+
+    .toggle-switch.active .toggle-slider {
+        transform: translateX(24px);
+    }
+
+    /* Select Dropdown */
+    .custom-select {
+        position: relative;
+    }
+
+        .custom-select select {
+            appearance: none;
+            padding-right: 35px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+    /* Buttons */
+    .btn-primary {
+        background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(216, 67, 21, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(216, 67, 21, 0.4);
+        }
+
+    .btn-secondary {
+        background: var(--border-color);
+        color: var(--text-primary);
+        border: none;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+        .btn-secondary:hover {
+            background: #C0C0C0;
+        }
+
+    .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    /* Success Message */
+    .success-message {
+        display: none;
+        background: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-top: 15px;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .success-message.show {
+            display: flex;
+        }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .sidebar {
+            transform: translateX(-100%);
+        }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+        .main-content {
+            margin-left: 0;
+        }
+
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .mobile-burger {
+        display: none;
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 999;
+        background: #3E2723;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .mobile-burger {
+            display: block !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Mobile Burger Button -->
+<button class="mobile-burger" onclick="toggleSidebar()">
+    <i class="fas fa-bars"></i>
+</button>
+
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="logo-container">
+            <img src="{% static 'images/banelologo.png' %}" alt="Banelo Coffee Logo" class="logo-icon">
+            <span class="logo-text">Banelo</span>
+        </div>
+        <button class="burger-btn" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <ul class="sidebar-menu">
+        <li class="menu-item">
+            <a href="{% url 'dashboard' %}" class="menu-link">
+                <i class="fas fa-home menu-icon"></i>
+                <span class="menu-text">Overview</span>
+            </a>
+        </li>
+
+        <!-- Inventory with Dropdown -->
+        <li class="menu-item">
+            <a href="javascript:void(0);" class="menu-link" onclick="toggleSubmenu('inventorySubmenu')">
+                <i class="fas fa-box menu-icon"></i>
+                <span class="menu-text">Inventory</span>
+                <i class="fas fa-chevron-down submenu-arrow"></i>
+            </a>
+            <ul class="submenu" id="inventorySubmenu">
+                <li class="submenu-item">
+                    <a href="{% url 'inventory' %}" class="submenu-link">
+                        <i class="fas fa-list"></i>
+                        <span>Inventory List</span>
+                    </a>
+                </li>
+                <li class="submenu-item">
+                    <a href="{% url 'recipes' %}" class="submenu-link">
+                        <i class="fas fa-mortar-pestle"></i>
+                        <span>Recipe Management</span>
+                    </a>
+                </li>
+                <li class="submenu-item">
+                    <a href="#" class="submenu-link">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Inventory Forecasting</span>
+                    </a>
+                </li>
+            </ul>
+        </li>
+
+        <!-- Sales with Dropdown -->
+        <li class="menu-item">
+            <a href="javascript:void(0);" class="menu-link" onclick="toggleSubmenu('salesSubmenu')">
+                <i class="fas fa-dollar-sign menu-icon"></i>
+                <span class="menu-text">Sales</span>
+                <i class="fas fa-chevron-down submenu-arrow"></i>
+            </a>
+            <ul class="submenu" id="salesSubmenu">
+                <li class="submenu-item">
+                    <a href="{% url 'sales' %}" class="submenu-link">
+                        <i class="fas fa-receipt"></i>
+                        <span>Sales Records</span>
+                    </a>
+                </li>
+                <li class="submenu-item">
+                    <a href="#" class="submenu-link">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Sales Forecasting</span>
+                    </a>
+                </li>
+            </ul>
+        </li>
+
+        <li class="menu-item">
+            <a href="{% url 'accounts' %}" class="menu-link">
+                <i class="fas fa-users menu-icon"></i>
+                <span class="menu-text">Accounts</span>
+            </a>
+        </li>
+
+        <li class="menu-item">
+            <a href="{% url 'audit_trail' %}" class="menu-link">
+                <i class="fas fa-clipboard-list menu-icon"></i>
+                <span class="menu-text">Audit Trail</span>
+            </a>
+        </li>
+
+        <li class="menu-item">
+            <a href="{% url 'settings' %}" class="menu-link active">
+                <i class="fas fa-cog menu-icon"></i>
+                <span class="menu-text">Settings</span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="logout-section">
+        <form method="POST" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="logout-text">Log Out</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content" id="mainContent">
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <h1 class="page-title-bar">Settings</h1>
+        <div class="top-bar-actions">
+            <div class="user-profile" title="{{ user.username }}">
+                {{ user.username|first|upper }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Content -->
+    <div class="settings-content">
+        <div class="settings-grid">
+            <!-- Profile Settings Card -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <h3 class="card-title">Profile Settings</h3>
+                </div>
+
+                <form id="profileForm">
+                    <div class="form-group">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" class="form-control" id="displayName" value="Admin User" placeholder="Enter display name">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" value="admin@banelocoffee.com" placeholder="Enter email" disabled>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i>
+                            Save Changes
+                        </button>
+                    </div>
+
+                    <div class="success-message" id="profileSuccess">
+                        <i class="fas fa-check-circle"></i>
+                        Profile updated successfully!
+                    </div>
+                </form>
+            </div>
+
+            <!-- Security Card -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <h3 class="card-title">Security</h3>
+                </div>
+
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-title">Two Factor Authentication</div>
+                        <div class="setting-desc">Add an extra layer of security</div>
+                    </div>
+                    <div class="toggle-switch" id="twoFactorToggle" onclick="toggleSwitch(this)">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+
+                <form id="passwordForm" style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword" placeholder="Enter current password">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword" placeholder="Enter new password">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm new password">
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-key"></i>
+                            Update Password
+                        </button>
+                    </div>
+
+                    <div class="success-message" id="passwordSuccess">
+                        <i class="fas fa-check-circle"></i>
+                        Password updated successfully!
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK - MUST LOAD FIRST -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<script>
+    // ========================================
+    // FIREBASE CONFIGURATION - INITIALIZE FIRST
+    // ========================================
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB6K1nrZcO-VKdKeEFgyhma_V6MZpTYqO0",
+        authDomain: "banelo-databasenew.firebaseapp.com",
+        projectId: "banelo-databasenew",
+        storageBucket: "banelo-databasenew.firebasestorage.app",
+        messagingSenderId: "915681305539",
+        appId: "1:915681305539:web:81379d03c1fe756cfc9376",
+        measurementId: "G-SC5EYBHBLY"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    console.log('🔥 Firebase initialized successfully');
+
+    // ========================================
+    // MAIN APPLICATION CODE
+    // ========================================
+
+    // Sidebar Toggle
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('expanded');
+        sidebar.classList.toggle('mobile-open');
+    }
+    // Submenu Toggle Function
+    function toggleSubmenu(submenuId) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const submenu = document.getElementById(submenuId);
+        const menuLink = event.currentTarget;
+        const isCurrentlyOpen = submenu.classList.contains('open');
+
+        // Close ALL submenus first
+        document.querySelectorAll('.submenu').forEach(sm => {
+            sm.classList.remove('open');
+        });
+
+        // Remove active class from all menu links with arrows
+        document.querySelectorAll('.menu-link').forEach(link => {
+            if (link.querySelector('.submenu-arrow')) {
+                link.classList.remove('active');
+            }
+        });
+
+        // If the clicked submenu was NOT open, open it now
+        if (!isCurrentlyOpen) {
+            submenu.classList.add('open');
+            menuLink.classList.add('active');
+        }
+    }
+
+    // Toggle Switch Function
+    function toggleSwitch(element) {
+        element.classList.toggle('active');
+    }
+
+    // Theme Management
+    function changeTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+        }
+    }
+
+    // Helper function to get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Load saved theme and setup forms
+    document.addEventListener('DOMContentLoaded', function () {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('themeSelect').value = 'dark';
+        }
+
+        // Profile Form Submit
+        document.getElementById('profileForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const displayName = document.getElementById('displayName').value;
+
+            console.log('Profile update:', { displayName });
+
+            const successMsg = document.getElementById('profileSuccess');
+            successMsg.classList.add('show');
+            setTimeout(() => {
+                successMsg.classList.remove('show');
+            }, 3000);
+        });
+
+        // Password Form Submit - FIREBASE + DJANGO AUTO-SYNC
+        document.getElementById('passwordForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const submitBtn = this.querySelector('.btn-primary');
+            const originalBtnText = submitBtn.innerHTML;
+
+            // Validation
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                alert('❌ Please fill in all password fields');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                alert('❌ New passwords do not match');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                alert('❌ New password must be at least 6 characters');
+                return;
+            }
+
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            submitBtn.disabled = true;
+
+            try {
+                const user = auth.currentUser;
+
+                if (!user) {
+                    alert('❌ No user logged in to Firebase');
+                    submitBtn.innerHTML = originalBtnText;
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                console.log('👤 Current user:', user.email);
+
+                // STEP 1: Update Firebase Password
+                console.log('🔥 Step 1/2: Updating Firebase password...');
+
+                const credential = firebase.auth.EmailAuthProvider.credential(
+                    user.email,
+                    currentPassword
+                );
+
+                await user.reauthenticateWithCredential(credential);
+                console.log('✅ Re-authentication successful!');
+
+                await user.updatePassword(newPassword);
+                console.log('✅ Firebase password updated!');
+
+                // STEP 2: Update Django Password
+                console.log('🐍 Step 2/2: Updating Django password...');
+
+                const response = await fetch('/dashboard/api/update-password/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('✅ Django password updated!');
+                    console.log('🎉 Both passwords synced successfully!');
+
+                    const successMsg = document.getElementById('passwordSuccess');
+                    successMsg.classList.add('show');
+
+                    this.reset();
+
+                    setTimeout(() => {
+                        successMsg.classList.remove('show');
+                    }, 3000);
+
+                    alert('✅ Password updated successfully!\n\nBoth Firebase and Django passwords have been synced.');
+
+                } else {
+                    console.error('❌ Django password update failed:', result.message);
+                    alert('⚠️ Firebase password updated, but Django update failed.\n\n' + result.message);
+                }
+
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
+
+            } catch (error) {
+                console.error('❌ Error updating password:', error);
+
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-login-credentials') {
+                    alert('❌ Current password is incorrect.');
+                } else if (error.code === 'auth/weak-password') {
+                    alert('❌ New password is too weak (must be at least 6 characters)');
+                } else if (error.code === 'auth/requires-recent-login') {
+                    alert('❌ Please log out and log back in, then try changing password again.');
+                } else {
+                    alert('❌ Failed to update password: ' + error.message);
+                }
+
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
+            }
+        });
+    });
+
+    // Save Notifications
+    function saveNotifications() {
+        const lowStock = document.getElementById('lowStockToggle').classList.contains('active');
+        const salesSummary = document.getElementById('salesSummaryToggle').classList.contains('active');
+        const forecast = document.getElementById('forecastToggle').classList.contains('active');
+
+        console.log('Notification Settings:', { lowStock, salesSummary, forecast });
+
+        const successMsg = document.getElementById('notificationSuccess');
+        successMsg.classList.add('show');
+        setTimeout(() => {
+            successMsg.classList.remove('show');
+        }, 3000);
+    }
+
+    // Save System Preferences
+    function saveSystemPreferences() {
+        const currency = document.getElementById('currency').value;
+        const theme = document.getElementById('themeSelect').value;
+        const autoSave = document.getElementById('autoSaveToggle').classList.contains('active');
+
+        console.log('System Preferences:', { currency, theme, autoSave });
+
+        const successMsg = document.getElementById('systemSuccess');
+        successMsg.classList.add('show');
+        setTimeout(() => {
+            successMsg.classList.remove('show');
+        }, 3000);
+    }
+
+    // Manual Firebase Login
+    async function manualFirebaseLogin() {
+        const email = 'admin@banelocoffee.com';
+        const password = prompt('Enter your Firebase password:');
+
+        if (!password) return;
+
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+            console.log('✅ Manual Firebase login successful');
+            alert('✅ Successfully logged into Firebase!');
+            location.reload();
+        } catch (error) {
+            console.error('❌ Manual login failed:', error);
+            alert('❌ Login failed: ' + error.message);
+        }
+    }
+
+    // Check Firebase Auth Status
+    auth.onAuthStateChanged(function (user) {
+        console.log('🔍 Auth state changed. User:', user);
+
+        if (user) {
+            console.log('✅ User logged in:', user.email);
+
+            const displayNameField = document.getElementById('displayName');
+            const emailField = document.getElementById('email');
+
+            if (displayNameField) displayNameField.value = user.displayName || 'Admin User';
+            if (emailField) emailField.value = user.email || '';
+
+            console.log('👤 User loaded:', {
+                displayName: user.displayName,
+                email: user.email,
+                uid: user.uid
+            });
+
+        } else {
+            console.log('⚠️ No Firebase user logged in');
+
+            const topBar = document.querySelector('.top-bar-actions');
+
+            if (topBar && !document.getElementById('firebaseLoginBtn')) {
+                const loginBtn = document.createElement('button');
+                loginBtn.id = 'firebaseLoginBtn';
+                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to Firebase';
+                loginBtn.className = 'btn-primary';
+                loginBtn.onclick = manualFirebaseLogin;
+                loginBtn.style.marginRight = '10px';
+                topBar.insertBefore(loginBtn, topBar.firstChild);
+                console.log('✅ Login button added');
+            }
+
+            const passwordForm = document.getElementById('passwordForm');
+            if (passwordForm) {
+                passwordForm.innerHTML = `
+                <div style="text-align: center; padding: 30px; background: #f5f5f5; border-radius: 10px;">
+                    <i class="fas fa-lock" style="font-size: 48px; color: #999; margin-bottom: 15px;"></i>
+                    <p style="color: #666; margin-bottom: 20px;">Please login to Firebase to change password</p>
+                    <button class="btn-primary" onclick="manualFirebaseLogin()" type="button">
+                        <i class="fas fa-sign-in-alt"></i> Login to Firebase
+                    </button>
+                </div>
+                `;
+            }
+        }
+    });
+</script>
+
+{% endblock %}

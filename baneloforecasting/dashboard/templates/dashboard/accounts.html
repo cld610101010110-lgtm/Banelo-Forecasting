@@ -1,0 +1,1936 @@
+﻿{% extends 'dashboard/base.html' %}
+{% load static %}
+{% block title %}Account Management - Coffee POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .accounts-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .accounts-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+        .accounts-title i {
+            color: #8B4513;
+        }
+
+    .add-user-btn {
+        background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+        .add-user-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+        }
+
+    .accounts-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid #8B4513;
+    }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card p {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+    .users-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .user-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .user-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #8B4513, #D2691E);
+        }
+
+        .user-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+    .user-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .user-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #8B4513, #D2691E);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .user-info {
+        flex: 1;
+    }
+
+    .user-name {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 0.25rem;
+    }
+
+    .user-role {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .role-admin {
+        background: #fee;
+        color: #c33;
+    }
+
+    .role-manager {
+        background: #fef3e0;
+        color: #d97706;
+    }
+
+    .role-cashier {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .user-details {
+        margin: 1rem 0;
+        padding-top: 1rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .user-detail-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        color: #666;
+    }
+
+        .user-detail-item i {
+            color: #8B4513;
+            width: 16px;
+        }
+
+    .user-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .btn-action {
+        flex: 1;
+        padding: 0.5rem;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+    }
+
+    .btn-edit {
+        background: #f0f9ff;
+        color: #0369a1;
+    }
+
+        .btn-edit:hover {
+            background: #0369a1;
+            color: white;
+        }
+
+    .btn-delete {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+        .btn-delete:hover {
+            background: #dc2626;
+            color: white;
+        }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        animation: fadeIn 0.3s ease;
+    }
+
+        .modal.show {
+            display: flex !important; /* Added !important to override */
+            align-items: center;
+            justify-content: center;
+        }
+
+    .modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: slideUp 0.3s ease;
+        position: relative; /* Added this */
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f3f4f6;
+    }
+
+    .modal-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+        .modal-title i {
+            color: #8B4513;
+        }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+        transition: color 0.2s ease;
+    }
+
+        .close-btn:hover {
+            color: #dc2626;
+        }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            box-sizing: border-box; /* Added this */
+        }
+
+            .form-group input:focus,
+            .form-group select:focus {
+                outline: none;
+                border-color: #8B4513;
+                box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+            }
+
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 2rem;
+    }
+
+    .btn-submit {
+        flex: 1;
+        padding: 0.875rem;
+        background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+        }
+
+    .btn-cancel {
+        flex: 1;
+        padding: 0.875rem;
+        background: #f3f4f6;
+        color: #374151;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+        .btn-cancel:hover {
+            background: #e5e7eb;
+        }
+
+    @media (max-width: 768px) {
+        .users-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .accounts-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .add-user-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .modal-content {
+            width: 95%;
+            max-height: 85vh;
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="accounts-header">
+    <h1 class="accounts-title">
+        <i class="fas fa-users"></i>
+        Account Management
+    </h1>
+    <button class="add-user-btn" onclick="openAddModal()">
+        <i class="fas fa-plus"></i>
+        Add New User
+    </button>
+</div>
+
+<div class="accounts-stats">
+    <div class="stat-card">
+        <h3>Total Users</h3>
+        <p>{{ total_users }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Active Users</h3>
+        <p>{{ users|length }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Managers</h3>
+        <p>{{ manager_count }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Cashiers</h3>
+        <p>{{ cashier_count }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Inventory Clerks</h3>
+        <p>{{ clerk_count }}</p>
+    </div>
+</div>
+
+<div class="users-grid">
+    <!-- Users will be loaded here by JavaScript -->
+    <div style="grid-column: 1/-1; text-align: center; padding: 3rem; background: white; border-radius: 12px;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #8B4513; margin-bottom: 1rem;"></i>
+        <p style="color: #666; font-size: 1.125rem;">Loading users from Firebase...</p>
+    </div>
+</div>
+
+</div>
+
+<!-- Add User Modal -->
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="fas fa-user-plus"></i>
+                Add New User
+            </h2>
+            <button class="close-btn" onclick="closeAddModal()">&times;</button>
+        </div>
+        <form id="addUserForm">
+            <div class="form-group">
+                <label for="firstName">First Name</label>
+                <input type="text" id="firstName" name="firstName" required>
+            </div>
+            <div class="form-group">
+                <label for="lastName">Last Name</label>
+                <input type="text" id="lastName" name="lastName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="middleName">Middle Name</label>
+                <input type="text" id="middleName" name="middleName" placeholder="Optional">
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role" name="role" required>
+                    <option value="">Select Role</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Cashier">Cashier</option>
+                    <option value="Inventory Clerk">Inventory Clerk</option>
+                </select>
+            </div>
+
+
+            <div class="form-group">
+                <label for="addPassword">Password *</label>
+                <input type="password" id="addPassword" name="password" placeholder="Enter password (minimum 6 characters)" required>
+                <small style="color: #666; font-size: 12px;">Minimum 6 characters required</small>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn-submit">Add User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="fas fa-user-edit"></i>
+                Edit User
+            </h2>
+            <button class="close-btn" onclick="closeEditModal()">&times;</button>
+        </div>
+        <form id="editUserForm">
+            <input type="hidden" id="editUserId">
+
+            <div class="form-group">
+                <label for="editFirstName">First Name *</label>
+                <input type="text" id="editFirstName" name="firstName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="editMiddleName">Middle Name</label>
+                <input type="text" id="editMiddleName" name="middleName">
+            </div>
+
+            <div class="form-group">
+                <label for="editLastName">Last Name *</label>
+                <input type="text" id="editLastName" name="lastName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="editUsername">Username *</label>
+                <input type="text" id="editUsername" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="editRole">Role *</label>
+                <select id="editRole" name="role" required>
+                    <option value="manager">Manager</option>
+                    <option value="cashier">Cashier</option>
+                    <option value="inventory clerk">Inventory Clerk</option>
+                </select>
+            </div>
+
+
+            <div class="form-group">
+                <label>Password Management</label>
+                <button type="button" onclick="adminResetPassword(document.getElementById('editUserId').value)"
+                        style="width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                    <i class="fas fa-key"></i>
+                    Reset User Password
+                </button>
+                <small style="color: #666; font-size: 12px; display: block; margin-top: 0.5rem;">
+                    <i class="fas fa-info-circle"></i> Click to set a new password for this user
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="editStatus">Status (Cannot Edit)</label>
+                <input type="text" id="editStatus" name="status" readonly
+                       style="background-color: #f3f4f6; cursor: not-allowed; color: #6b7280; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; width: 100%;">
+            </div>
+
+            <div class="form-group">
+                <label for="editJoinedDate">Joined Date (Cannot Edit)</label>
+                <input type="text" id="editJoinedDate" name="joinedDate" readonly
+                       style="background-color: #f3f4f6; cursor: not-allowed; color: #6b7280;">
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn-submit">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<script>
+    // Firebase Configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyB6K1nrZcO-VKdKeEFgyhma_V6MZpTYqO0",
+        authDomain: "banelo-databasenew.firebaseapp.com",
+        projectId: "banelo-databasenew",
+        storageBucket: "banelo-databasenew.firebasestorage.app",
+        messagingSenderId: "915681305539",
+        appId: "1:915681305539:web:81379d03c1fe756cfc9376",
+        measurementId: "G-SC5EYBHBLY"
+    };
+
+    // Initialize Firebase
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    console.log('🔥 Firebase initialized for Accounts page');
+
+    // ========================================
+    // LOAD USERS FROM FIREBASE
+    // ========================================
+    async function loadUsers() {
+        try {
+            console.log('🔄 Loading users from Firebase...');
+            const usersSnapshot = await db.collection('users').get();
+            const usersGrid = document.querySelector('.users-grid');
+
+            // Clear existing content
+            usersGrid.innerHTML = '';
+
+            if (usersSnapshot.empty) {
+                usersGrid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 3rem; background: white; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <i class="fas fa-users" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+                        <p style="color: #666; font-size: 1.125rem;">No users found in database</p>
+                        <button class="add-user-btn" onclick="openAddModal()" style="margin-top: 1rem; padding: 0.75rem 1.5rem; background: #8B4513; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Add Your First User
+                        </button>
+                    </div>
+                `;
+                updateStats(0, 0, 0, 0);
+                return;
+            }
+
+            let totalUsers = 0;
+            let activeUsers = 0;
+            let manager = 0;
+            let cashiers = 0;
+            let clerks = 0;
+
+            usersSnapshot.forEach((doc) => {
+                const user = doc.data();
+                const userId = doc.id;
+
+                totalUsers++;
+                if (user.status === 'active') activeUsers++;
+                if (user.role === 'manager') manager++;
+                if (user.role === 'cashier') cashiers++;
+                if (user.role === 'inventory clerk') clerks++;
+
+
+                const userCard = createUserCard(userId, user);
+                usersGrid.innerHTML += userCard;
+            });
+
+            updateStats(totalUsers, activeUsers, manager, cashiers, clerks);
+            console.log('✅ Users loaded successfully!');
+            console.log(`📊 Total: ${totalUsers}, Active: ${activeUsers}, Cashiers: ${cashiers}`);
+
+        } catch (error) {
+            console.error('❌ Error loading users:', error);
+            const usersGrid = document.querySelector('.users-grid');
+            usersGrid.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 3rem; background: #fee; border-radius: 12px; border: 2px solid #fcc;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #c33; margin-bottom: 1rem;"></i>
+                    <p style="color: #c33; font-size: 1.125rem; font-weight: 600;">Error loading users</p>
+                    <p style="color: #666; margin-top: 0.5rem;">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    // ========================================
+    // UPDATE STATS CARDS
+    // ========================================
+    function updateStats(total, active, manager, cashiers, clerks) {
+        const statCards = document.querySelectorAll('.stat-card p');
+        if (statCards[0]) statCards[0].textContent = total;
+        if (statCards[1]) statCards[1].textContent = active;
+        if (statCards[2]) statCards[2].textContent = manager;
+        if (statCards[3]) statCards[3].textContent = cashiers;
+        if (statCards[4]) statCards[4].textContent = clerks;
+    }
+
+    // ========================================
+    // CREATE USER CARD HTML
+    // ========================================
+    function createUserCard(userId, user) {
+        const fullName = [user.fname, user.mname, user.lname]
+            .filter(n => n && n.trim())
+            .join(' ') || 'Unknown User';
+
+        const initials = fullName
+            .split(' ')
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+            .substring(0, 2);
+
+        const role = user.role || 'staff';
+        const roleColors = {
+            'manager': { bg: '#fef3c7', color: '#92400e' },
+            'cashier': { bg: '#dbeafe', color: '#1e40af' },
+            'inventory clerk': { bg: '#dcfce7', color: '#166534' }
+        };
+        const roleColor = roleColors[role.toLowerCase()] || roleColors['inventory clerk'];
+
+        const avatarColors = {
+            'manager': '#f59e0b',
+            'cashier': '#3b82f6',
+            'inventory clerk': '#22c55e'
+        };
+        const avatarBg = avatarColors[role.toLowerCase()] || avatarColors['inventory clerk'];
+
+        const joinDate = user.joinedDate ?
+            new Date(user.joinedDate.toDate()).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            }) : 'N/A';
+
+        const isActive = user.status === 'active';
+        const statusColor = isActive ? '#10b981' : '#ef4444';
+        const statusText = isActive ? 'Active' : 'Inactive';
+
+        return `
+            <div class="user-card" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div class="user-header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="user-avatar" style="width: 60px; height: 60px; border-radius: 50%; background: ${avatarBg}; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.25rem;">
+                        ${user.profileImageUrl ?
+                `<img src="${user.profileImageUrl}" alt="${fullName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">` :
+                initials
+            }
+                    </div>
+                    <div class="user-info" style="flex: 1;">
+                        <div class="user-name" style="font-size: 1.125rem; font-weight: 600; color: #111; margin-bottom: 0.25rem;">${fullName}</div>
+                        <span class="user-role" style="display: inline-block; padding: 0.25rem 0.75rem; background: ${roleColor.bg}; color: ${roleColor.color}; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">
+                            ${role}
+                        </span>
+                    </div>
+                </div>
+<div class="user-details" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; padding: 1rem 0; border-top: 1px solid #f3f4f6; border-bottom: 1px solid #f3f4f6;">
+    <!-- First Name -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-user" style="width: 16px;"></i>
+        <span>First Name: ${user.fname || 'N/A'}</span>
+    </div>
+
+    <!-- Middle Name -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-user" style="width: 16px;"></i>
+        <span>Middle Name: ${user.mname || 'N/A'}</span>
+    </div>
+
+    <!-- Last Name -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-user" style="width: 16px;"></i>
+        <span>Last Name: ${user.lname || 'N/A'}</span>
+    </div>
+
+    <!-- Username -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-id-badge" style="width: 16px;"></i>
+        <span>Username: ${user.username || 'N/A'}</span>
+    </div>
+
+    <!-- Role -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-user-tag" style="width: 16px;"></i>
+        <span>Role: ${user.role || 'N/A'}</span>
+    </div>
+
+    <!-- Status -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-circle" style="width: 16px; color: ${user.status === 'active' ? '#10b981' : '#ef4444'};"></i>
+        <span>Status: ${user.status || 'N/A'}</span>
+    </div>
+
+    <!-- Joined Date -->
+    <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+        <i class="fas fa-calendar" style="width: 16px;"></i>
+        <span>Joined: ${user.joinedDate || 'N/A'}</span>
+    </div>
+</div>
+
+
+                <div class="user-actions" style="display: flex; gap: 0.5rem;">
+                    <button onclick="openEditModal('${userId}')" style="flex: 1; padding: 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <i class="fas fa-edit"></i>
+                        Edit
+                    </button>
+                    <button onclick="confirmDelete('${userId}', '${fullName}')" style="flex: 1; padding: 0.5rem; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <i class="fas fa-trash"></i>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // ========================================
+    // MODAL FUNCTIONS
+    // ========================================
+    function openAddModal() {
+        document.getElementById('addModal').classList.add('show');
+    }
+
+    function closeAddModal() {
+        document.getElementById('addModal').classList.remove('show');
+        document.getElementById('addUserForm').reset();
+    }
+
+    async function openEditModal(userId) {
+        try {
+            console.log('📝 Opening edit modal for user:', userId);
+            const doc = await db.collection('users').doc(userId).get();
+
+            if (!doc.exists) {
+                alert('❌ User not found!');
+                return;
+            }
+
+            const user = doc.data();
+            console.log('User data loaded:', user);
+
+            // Populate all form fields
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('editFirstName').value = user.fname || '';
+            document.getElementById('editMiddleName').value = user.mname || '';
+            document.getElementById('editLastName').value = user.lname || '';
+            document.getElementById('editUsername').value = user.username || '';
+            document.getElementById('editRole').value = user.role || 'staff';
+
+           
+
+            // Set status as text (read-only)
+            const statusText = user.status === 'active' ? 'Active' : 'Inactive';
+            document.getElementById('editStatus').value = statusText;
+
+            // Format joined date
+            let joinedDateStr = 'N/A';
+            if (user.joinedDate) {
+                if (user.joinedDate.toDate) {
+                    joinedDateStr = user.joinedDate.toDate().toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                } else {
+                    joinedDateStr = user.joinedDate;
+                }
+            }
+            document.getElementById('editJoinedDate').value = joinedDateStr;
+
+            // Show modal - using both methods to ensure it shows
+            const modal = document.getElementById('editUserModal');
+            modal.style.display = 'flex';
+            modal.classList.add('show');
+
+        } catch (error) {
+            console.error('❌ Error loading user:', error);
+            alert('Failed to load user: ' + error.message);
+        }
+    }
+
+    function closeEditModal() {
+        const modal = document.getElementById('editUserModal');
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+        document.getElementById('editUserForm').reset();
+    }
+
+    async function confirmDelete(userId, userName) {
+        // Create custom modal HTML
+        const modalHTML = `
+        <div id="customDeleteModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        ">
+            <div style="
+                background: white;
+                border-radius: 20px;
+                padding: 2.5rem;
+                max-width: 450px;
+                width: 90%;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                animation: slideUp 0.3s ease;
+                border: 3px solid #f97316;
+            ">
+                <!-- Warning Icon -->
+                <div style="
+                    width: 80px;
+                    height: 80px;
+                    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 1.5rem;
+                    box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
+                ">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; color: white;"></i>
+                </div>
+
+                <!-- Title -->
+                <h2 style="
+                    text-align: center;
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin-bottom: 1rem;
+                ">Confirm Deletion</h2>
+
+                <!-- Message -->
+                <p style="
+                    text-align: center;
+                    color: #6b7280;
+                    font-size: 1rem;
+                    margin-bottom: 0.5rem;
+                    line-height: 1.6;
+                ">Are you sure you want to delete</p>
+
+                <p style="
+                    text-align: center;
+                    color: #ef4444;
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    margin-bottom: 0.5rem;
+                ">"${userName}"</p>
+
+                <p style="
+                    text-align: center;
+                    color: #f97316;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    margin-bottom: 2rem;
+                    font-style: italic;
+                ">This action cannot be undone.</p>
+
+                <!-- Buttons -->
+                <div style="display: flex; gap: 1rem;">
+                    <button id="cancelDeleteBtn" style="
+                        flex: 1;
+                        padding: 0.875rem 1.5rem;
+                        background: #f3f4f6;
+                        color: #374151;
+                        border: 2px solid #e5e7eb;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        font-size: 1rem;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                    " onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">
+                        <i class="fas fa-times"></i>
+                        CANCEL
+                    </button>
+
+                    <button id="confirmDeleteBtn" style="
+                        flex: 1;
+                        padding: 0.875rem 1.5rem;
+                        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        font-size: 1rem;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(239, 68, 68, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(239, 68, 68, 0.3)'">
+                        <i class="fas fa-trash"></i>
+                        YES, DELETE
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes slideUp {
+                from {
+                    transform: translateY(20px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+        </style>
+    `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Get modal and buttons
+        const modal = document.getElementById('customDeleteModal');
+        const cancelBtn = document.getElementById('cancelDeleteBtn');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+
+        // Close modal function
+        const closeModal = () => {
+            modal.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        // Cancel button
+        cancelBtn.onclick = closeModal;
+
+        // Click outside to close
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        };
+
+        // Confirm delete button
+        confirmBtn.onclick = async () => {
+            try {
+                console.log('🗑️ Deleting user:', userId);
+
+                // Show loading state
+                confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                confirmBtn.disabled = true;
+
+                // Delete from Firestore
+                await db.collection('users').doc(userId).delete();
+
+                console.log('✅ User deleted successfully!');
+
+                // Close modal
+                closeModal();
+
+                // Show success message
+                showSuccessMessage(`✅ ${userName} has been deleted successfully!`);
+
+                // Reload users
+                loadUsers();
+
+            } catch (error) {
+                console.error('❌ Error deleting user:', error);
+                closeModal();
+                showErrorMessage('Failed to delete user: ' + error.message);
+            }
+        };
+    }
+
+    // Success message function
+    function showSuccessMessage(message) {
+        const successHTML = `
+        <div id="successMessage" style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+        ">
+            <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+            ${message}
+        </div>
+        <style>
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+        </style>
+    `;
+
+        document.body.insertAdjacentHTML('beforeend', successHTML);
+
+        setTimeout(() => {
+            const msg = document.getElementById('successMessage');
+            if (msg) {
+                msg.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => msg.remove(), 300);
+            }
+        }, 3000);
+    }
+
+    // Error message function
+    function showErrorMessage(message) {
+        const errorHTML = `
+        <div id="errorMessage" style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+        ">
+            <i class="fas fa-exclamation-circle" style="font-size: 1.5rem;"></i>
+            ${message}
+        </div>
+        <style>
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+        </style>
+    `;
+
+        document.body.insertAdjacentHTML('beforeend', errorHTML);
+
+        setTimeout(() => {
+            const msg = document.getElementById('errorMessage');
+            if (msg) {
+                msg.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => msg.remove(), 300);
+            }
+        }, 3000);
+    }
+
+
+
+    // ========================================
+    // 🆕 ADMIN PASSWORD RESET FUNCTIONS
+    // ========================================
+
+    async function adminResetPassword(userId) {
+        try {
+            console.log('🔑 Admin resetting password for:', userId);
+
+            // Get user data
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (!userDoc.exists) {
+                alert('❌ User not found!');
+                return;
+            }
+
+            const userData = userDoc.data();
+            const userName = `${userData.fname} ${userData.lname}`;
+
+            // Show custom password prompt modal
+            showPasswordPromptModal(userId, userName, userData);
+
+        } catch (error) {
+            console.error('❌ Error in password reset:', error);
+            alert('❌ Failed to reset password: ' + error.message);
+        }
+    }
+
+    function showPasswordPromptModal(userId, userName, userData) {
+        const modalHTML = `
+            <div id="passwordPromptModal" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                animation: fadeIn 0.3s ease;
+            ">
+                <div style="
+                    background: white;
+                    border-radius: 20px;
+                    padding: 2.5rem;
+                    max-width: 500px;
+                    width: 90%;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    animation: slideUp 0.3s ease;
+                    border-top: 5px solid #f59e0b;
+                ">
+                    <!-- Icon -->
+                    <div style="
+                        width: 80px;
+                        height: 80px;
+                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 1.5rem;
+                        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+                    ">
+                        <i class="fas fa-key" style="font-size: 2.5rem; color: white;"></i>
+                    </div>
+
+                    <h2 style="
+                        text-align: center;
+                        font-size: 1.75rem;
+                        font-weight: 700;
+                        color: #1f2937;
+                        margin-bottom: 0.5rem;
+                    ">Reset Password</h2>
+
+                    <p style="
+                        text-align: center;
+                        color: #6b7280;
+                        font-size: 1rem;
+                        margin-bottom: 1.5rem;
+                    ">Setting new password for <strong style="color: #f59e0b;">${userName}</strong></p>
+
+                    <!-- Password Input -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="
+                            display: block;
+                            margin-bottom: 0.5rem;
+                            font-weight: 600;
+                            color: #374151;
+                            font-size: 0.875rem;
+                        ">New Password *</label>
+                        <input type="password" id="newPasswordInput" 
+                               placeholder="Enter new password (min 6 characters)"
+                               style="
+                            width: 100%;
+                            padding: 0.875rem;
+                            border: 2px solid #e5e7eb;
+                            border-radius: 8px;
+                            font-size: 1rem;
+                            transition: all 0.2s ease;
+                            box-sizing: border-box;
+                        " onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)'" 
+                           onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                        <small style="color: #6b7280; font-size: 0.75rem; display: block; margin-top: 0.5rem;">
+                            <i class="fas fa-info-circle"></i> Minimum 6 characters required
+                        </small>
+                    </div>
+
+                    <!-- Warning Box -->
+                    <div style="
+                        background: #fef3c7;
+                        border: 2px solid #f59e0b;
+                        border-radius: 8px;
+                        padding: 1rem;
+                        margin-bottom: 1.5rem;
+                    ">
+                        <p style="
+                            color: #92400e;
+                            font-size: 0.875rem;
+                            margin: 0;
+                            display: flex;
+                            align-items: flex-start;
+                            gap: 0.5rem;
+                        ">
+                            <i class="fas fa-exclamation-triangle" style="margin-top: 0.125rem; flex-shrink: 0;"></i>
+                            <span>The user will need to use this new password to log in. Make sure to share it securely.</span>
+                        </p>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div style="display: flex; gap: 1rem;">
+                        <button id="cancelPasswordBtn" style="
+                            flex: 1;
+                            padding: 0.875rem;
+                            background: #f3f4f6;
+                            color: #374151;
+                            border: 2px solid #e5e7eb;
+                            border-radius: 10px;
+                            font-weight: 600;
+                            font-size: 1rem;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        " onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">
+                            Cancel
+                        </button>
+
+                        <button id="confirmPasswordBtn" style="
+                            flex: 1;
+                            padding: 0.875rem;
+                            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                            color: white;
+                            border: none;
+                            border-radius: 10px;
+                            font-weight: 600;
+                            font-size: 1rem;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+                        " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(245, 158, 11, 0.4)'" 
+                           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.3)'">
+                            <i class="fas fa-check"></i> Reset Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        const modal = document.getElementById('passwordPromptModal');
+        const passwordInput = document.getElementById('newPasswordInput');
+        const cancelBtn = document.getElementById('cancelPasswordBtn');
+        const confirmBtn = document.getElementById('confirmPasswordBtn');
+
+        // Focus on input
+        setTimeout(() => passwordInput.focus(), 300);
+
+        // Close modal
+        const closeModal = () => {
+            modal.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => modal.remove(), 300);
+        };
+
+        // Cancel button
+        cancelBtn.onclick = closeModal;
+
+        // Click outside to close
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        };
+
+        // Enter key to submit
+        passwordInput.onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                confirmBtn.click();
+            }
+        };
+
+        // Confirm button
+        confirmBtn.onclick = async () => {
+            const newPassword = passwordInput.value.trim();
+
+            if (!newPassword) {
+                alert('❌ Please enter a password!');
+                passwordInput.focus();
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                alert('❌ Password must be at least 6 characters!');
+                passwordInput.focus();
+                return;
+            }
+
+            // Disable button and show loading
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+
+            try {
+                await performPasswordReset(userId, userData, newPassword);
+                closeModal();
+            } catch (error) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check"></i> Reset Password';
+                alert('❌ Failed to reset password: ' + error.message);
+            }
+        };
+    }
+
+    async function performPasswordReset(userId, userData, newPassword) {
+        try {
+            console.log('🔄 Performing password reset...');
+
+            // Show full-screen loading
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'resetPasswordLoading';
+            loadingDiv.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.85);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10001;
+            `;
+            loadingDiv.innerHTML = `
+                <div style="background: white; padding: 2.5rem; border-radius: 16px; text-align: center; min-width: 300px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #f59e0b; margin-bottom: 1rem;"></i>
+                    <p style="color: #374151; font-size: 1.125rem; font-weight: 600; margin: 0;">Resetting Password...</p>
+                    <p style="color: #6b7280; font-size: 0.875rem; margin-top: 0.5rem;">Please wait</p>
+                </div>
+            `;
+            document.body.appendChild(loadingDiv);
+
+            // Create new auth email (unique)
+            const timestamp = Date.now();
+            const newAuthEmail = `${userData.username}_${timestamp}@temp.com`;
+
+            // Step 1: Create new Firebase Auth account with new password
+            const newUserCredential = await auth.createUserWithEmailAndPassword(newAuthEmail, newPassword);
+            const newUid = newUserCredential.user.uid;
+
+            console.log('✅ New auth account created:', newUid);
+
+            // Step 2: Copy user data to new document (NO PASSWORD STORED!)
+            await db.collection('users').doc(newUid).set({
+                fname: userData.fname,
+                mname: userData.mname || '',
+                lname: userData.lname,
+                username: userData.username,
+                role: userData.role,
+                status: userData.status || 'active',
+                profileImageUrl: userData.profileImageUrl || '',
+                authEmail: newAuthEmail,
+                joinedDate: userData.joinedDate || firebase.firestore.FieldValue.serverTimestamp(),
+                passwordLastReset: firebase.firestore.FieldValue.serverTimestamp(),
+                passwordResetBy: auth.currentUser.email || 'admin'
+            });
+
+            console.log('✅ User data migrated to new document');
+
+            // Step 3: Delete old user document
+            await db.collection('users').doc(userId).delete();
+
+            console.log('✅ Old user document deleted');
+
+            // Remove loading
+            document.body.removeChild(loadingDiv);
+
+            // Show success modal
+            showPasswordResetSuccess(
+                `${userData.fname} ${userData.lname}`,
+                userData.username,
+                newPassword
+            );
+
+            // Reload users
+            loadUsers();
+
+        } catch (error) {
+            const loading = document.getElementById('resetPasswordLoading');
+            if (loading) document.body.removeChild(loading);
+            throw error;
+        }
+    }
+
+    function showPasswordResetSuccess(userName, username, newPassword) {
+        const modalHTML = `
+            <div id="passwordResetSuccessModal" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                animation: fadeIn 0.3s ease;
+            ">
+                <div style="
+                    background: white;
+                    border-radius: 20px;
+                    padding: 2.5rem;
+                    max-width: 550px;
+                    width: 90%;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    animation: slideUp 0.3s ease;
+                    border-top: 5px solid #10b981;
+                ">
+                    <!-- Success Icon -->
+                    <div style="
+                        width: 80px;
+                        height: 80px;
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 1.5rem;
+                        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+                    ">
+                        <i class="fas fa-check" style="font-size: 2.5rem; color: white;"></i>
+                    </div>
+
+                    <h2 style="
+                        text-align: center;
+                        font-size: 1.75rem;
+                        font-weight: 700;
+                        color: #1f2937;
+                        margin-bottom: 0.5rem;
+                    ">Password Reset Complete!</h2>
+
+                    <p style="
+                        text-align: center;
+                        color: #6b7280;
+                        font-size: 1rem;
+                        margin-bottom: 1.5rem;
+                    ">New credentials for <strong style="color: #10b981;">${userName}</strong></p>
+
+                    <!-- Credentials Box -->
+                    <div style="
+                        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                        border: 2px solid #10b981;
+                        border-radius: 12px;
+                        padding: 1.5rem;
+                        margin-bottom: 1.5rem;
+                    ">
+                        <!-- Username -->
+                        <div style="margin-bottom: 1.25rem;">
+                            <p style="color: #065f46; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-user" style="color: #10b981;"></i> Username
+                            </p>
+                            <div style="background: white; border: 2px solid #10b981; border-radius: 8px; padding: 0.875rem;">
+                                <p style="font-family: 'Courier New', monospace; font-size: 1.25rem; font-weight: 700; color: #059669; margin: 0; text-align: center;">
+                                    ${username}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Password -->
+                        <div>
+                            <p style="color: #065f46; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-key" style="color: #10b981;"></i> New Password
+                            </p>
+                            <div style="background: white; border: 2px dashed #10b981; border-radius: 8px; padding: 0.875rem;">
+                                <p style="font-family: 'Courier New', monospace; font-size: 1.5rem; font-weight: 700; color: #dc2626; margin: 0; letter-spacing: 2px; text-align: center;">
+                                    ${newPassword}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warning -->
+                    <div style="
+                        background: #fef3c7;
+                        border-left: 4px solid #f59e0b;
+                        border-radius: 6px;
+                        padding: 1rem;
+                        margin-bottom: 1.5rem;
+                    ">
+                        <p style="
+                            color: #92400e;
+                            font-size: 0.875rem;
+                            margin: 0;
+                            display: flex;
+                            align-items: flex-start;
+                            gap: 0.5rem;
+                        ">
+                            <i class="fas fa-shield-alt" style="color: #f59e0b; margin-top: 0.125rem; flex-shrink: 0;"></i>
+                            <span><strong>Important:</strong> Share these credentials securely with the user. The password is NOT stored in the database for security.</span>
+                        </p>
+                    </div>
+
+                    <!-- OK Button -->
+                    <button id="passwordResetOkBtn" style="
+                        width: 100%;
+                        padding: 1rem;
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        font-size: 1.125rem;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(16, 185, 129, 0.4)'" 
+                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16, 185, 129, 0.3)'">
+                        <i class="fas fa-check-circle"></i>
+                        Got It
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        const modal = document.getElementById('passwordResetSuccessModal');
+        const okBtn = document.getElementById('passwordResetOkBtn');
+
+        okBtn.onclick = () => {
+            modal.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => modal.remove(), 300);
+        };
+    }
+
+    // ========================================
+    // FORM SUBMISSIONS
+    // ========================================
+    document.getElementById('addUserForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        // ⚠️ FIX: Get password from correct field ID
+        const fname = document.getElementById('firstName').value.trim();
+        const mname = document.getElementById('middleName').value.trim();
+        const lname = document.getElementById('lastName').value.trim();
+        const role = document.getElementById('role').value;
+        const password = document.getElementById('addPassword').value; // 👈 Changed from 'password'
+
+
+        if (!fname || !lname || !password) {
+            alert('❌ Please fill in all required fields');
+            return;
+        }
+
+        if (password.length < 6) {
+            alert('❌ Password must be at least 6 characters');
+            return;
+        }
+
+        try {
+            console.log('🔄 Creating new user...');
+
+            // Create username from first and last name
+            const username = (fname.toLowerCase() + lname.toLowerCase()).replace(/\s+/g, '');
+            const tempEmail = username + '@temp.com';
+
+            // Create user in Firebase Auth
+            const userCredential = await auth.createUserWithEmailAndPassword(tempEmail, password);
+            const uid = userCredential.user.uid;
+
+            // Store user data in Firestore
+            await db.collection('users').doc(uid).set({
+                fname: fname,
+                lname: lname,
+                mname: mname, 
+                username: username,
+                role: role.toLowerCase(),
+                status: 'active',
+                profileImageUrl: '',
+                authEmail: tempEmail,  // Store for password reset reference
+                joinedDate: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log('✅ User created successfully!');
+            alert(`✅ User ${fname} ${lname} created successfully!\n\nUsername: ${username}\nPassword: ${password}\n\nMake sure to share these credentials securely.`);
+            closeAddModal();
+            loadUsers();
+
+        } catch (error) {
+            console.error('❌ Error creating user:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                alert('❌ A user with this name combination already exists!');
+            } else {
+                alert('❌ Failed to create user: ' + error.message);
+            }
+        }
+    });
+
+    // ========================================
+    // ✅ FIXED: EDIT USER FORM SUBMISSION
+    // ========================================
+
+    document.getElementById('editUserForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const userId = document.getElementById('editUserId').value;
+        const fname = document.getElementById('editFirstName').value.trim();
+        const mname = document.getElementById('editMiddleName').value.trim();
+        const lname = document.getElementById('editLastName').value.trim();
+        const username = document.getElementById('editUsername').value.trim();
+        const role = document.getElementById('editRole').value;
+
+        // Validate required fields
+        if (!fname || !lname || !username) {
+            alert('❌ Please fill in all required fields!');
+            return;
+        }
+
+        try {
+            console.log('🔄 Updating user:', userId);
+
+            // Update user data in Firestore
+            await db.collection('users').doc(userId).update({
+                fname: fname,
+                mname: mname,
+                lname: lname,
+                username: username,
+                role: role,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log('✅ User profile updated in Firestore!');
+
+            // Show success message
+            alert(`✅ ${fname} ${lname} updated successfully!`);
+
+            closeEditModal();
+            loadUsers(); // Reload users to show updated data
+
+        } catch (error) {
+            console.error('❌ Error updating user:', error);
+            alert('❌ Failed to update user: ' + error.message);
+        }
+    });
+
+
+    // Custom Password Update Modal
+    function showPasswordUpdateModal(userName, newPassword) {
+        const modalHTML = `
+        <div id="passwordUpdateModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        ">
+            <div style="
+                background: white;
+                border-radius: 20px;
+                padding: 2.5rem;
+                max-width: 500px;
+                width: 90%;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                animation: slideUp 0.3s ease;
+                border: 3px solid #10b981;
+            ">
+                <!-- Success Icon -->
+                <div style="
+                    width: 80px;
+                    height: 80px;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 1.5rem;
+                    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+                ">
+                    <i class="fas fa-check" style="font-size: 2.5rem; color: white;"></i>
+                </div>
+
+                <!-- Title -->
+                <h2 style="
+                    text-align: center;
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin-bottom: 1rem;
+                ">User Updated Successfully!</h2>
+
+                <!-- Success Message -->
+                <div style="
+                    background: #f0fdf4;
+                    border: 2px solid #10b981;
+                    border-radius: 12px;
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                ">
+                    <p style="
+                        text-align: center;
+                        color: #065f46;
+                        font-size: 1rem;
+                        margin-bottom: 1rem;
+                        font-weight: 600;
+                    ">
+                        <i class="fas fa-user-check" style="margin-right: 0.5rem;"></i>
+                        ${userName}
+                    </p>
+
+                    <!-- Warning Icon -->
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.5rem;
+                        margin-bottom: 0.75rem;
+                    ">
+                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b; font-size: 1.25rem;"></i>
+                        <p style="
+                            color: #92400e;
+                            font-size: 0.95rem;
+                            font-weight: 600;
+                            margin: 0;
+                        ">Note: The user will need to use the new password:</p>
+                    </div>
+
+                    <!-- Password Display -->
+                    <div style="
+                        background: white;
+                        border: 2px dashed #10b981;
+                        border-radius: 8px;
+                        padding: 1rem;
+                        text-align: center;
+                        margin-bottom: 1rem;
+                    ">
+                        <p style="
+                            font-family: 'Courier New', monospace;
+                            font-size: 1.5rem;
+                            font-weight: 700;
+                            color: #059669;
+                            margin: 0;
+                            letter-spacing: 2px;
+                        ">${newPassword}</p>
+                    </div>
+
+                    <!-- Security Notice -->
+                    <p style="
+                        text-align: center;
+                        color: #dc2626;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        margin: 0;
+                        font-style: italic;
+                    ">
+                        <i class="fas fa-shield-alt" style="margin-right: 0.25rem;"></i>
+                        Make sure to share this with them securely.
+                    </p>
+                </div>
+
+                <!-- OK Button -->
+                <button id="passwordModalOkBtn" style="
+                    width: 100%;
+                    padding: 1rem;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 1.125rem;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.5rem;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16, 185, 129, 0.3)'">
+                    <i class="fas fa-check-circle"></i>
+                    OK
+                </button>
+            </div>
+        </div>
+
+        <style>
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes slideUp {
+                from {
+                    transform: translateY(20px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+        </style>
+    `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        const modal = document.getElementById('passwordUpdateModal');
+        const okBtn = document.getElementById('passwordModalOkBtn');
+
+        const closeModal = () => {
+            modal.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        okBtn.onclick = closeModal;
+
+        // Click outside to close
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        };
+    }
+
+    // ========================================
+    // CLOSE MODALS ON OUTSIDE CLICK
+    // ========================================
+    window.addEventListener('click', function (e) {
+        if (e.target === document.getElementById('addModal')) {
+            closeAddModal();
+        }
+        if (e.target === document.getElementById('editUserModal')) {
+            closeEditModal();
+        }
+    });
+
+    // ========================================
+    // INITIALIZE ON PAGE LOAD
+    // ========================================
+    auth.onAuthStateChanged(function (user) {
+        if (user) {
+            console.log('✅ User authenticated:', user.email);
+            loadUsers();
+        } else {
+            console.log('❌ Not authenticated, redirecting...');
+            window.location.href = '/accounts/login/';
+        }
+    });
+</script>
+{% endblock %}
