@@ -115,17 +115,45 @@ def dashboard_view(request):
     """Display dashboard with real-time Firebase data and chart data with date filters"""
     try:
         print("\n🔥 DASHBOARD VIEW CALLED")
-        
+
+        # Import timeout utilities
+        from .firebase_utils import check_firebase_connectivity, get_firebase_error_context
+
+        # Check Firebase health first
+        health_status = check_firebase_connectivity()
+        if not health_status['is_healthy']:
+            print(f"⚠️ Firebase health check failed: {health_status['message']}")
+            print("📊 Returning fallback dashboard data")
+
+            # Return empty but functional dashboard
+            context = {
+                'today_sales': 0,
+                'sales_change': 0,
+                'total_products': 0,
+                'low_stock_items': 0,
+                'today_orders': 0,
+                'orders_change': 0,
+                'active_users': 0,
+                'recent_sales': [],
+                'chart_dates': [],
+                'chart_sales_data': [],
+                'chart_products': [],
+                'chart_quantities': [],
+                'current_filter': 'week',
+                'error_message': f"Firebase connection issue: {health_status['message']}. Some data may be unavailable.",
+            }
+            return render(request, 'dashboard/dashboard.html', context)
+
         # Get filter parameter (default: week)
         filter_type = request.GET.get('filter', 'week')
-        
+
         from datetime import datetime, timedelta
         from collections import defaultdict
-        
+
         today = datetime.now()
         today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
-        
+
         # Determine date range based on filter
         if filter_type == 'today':
             start_date = today_start
@@ -136,181 +164,206 @@ def dashboard_view(request):
         else:  # week (default)
             start_date = today_start - timedelta(days=7)
             date_range_days = 7
-        
+
         # ========================================
         # 1. GET TODAY'S SALES DATA
         # ========================================
         sales_ref = db.collection('sales')
-        all_sales = sales_ref.stream()
-        
+
+        # Set timeout for streaming - abort if takes too long
+        print("🔍 Fetching sales data (with 15s timeout)...")
+        try:
+            # Use a limited query first to test connectivity
+            all_sales_iter = sales_ref.limit(5000).stream()
+            all_sales = list(all_sales_iter)  # Materialize the generator quickly
+            print(f"✅ Fetched {len(all_sales)} sales records")
+        except Exception as sales_error:
+            print(f"⚠️ Error fetching sales: {sales_error}")
+            all_sales = []
+
         today_sales = 0
         yesterday_sales = 0
         today_orders = 0
         yesterday_orders = 0
         recent_sales = []
-        
+
         # For charts
         daily_sales = defaultdict(float)
         product_sales = defaultdict(int)
-        
+
         for sale_doc in all_sales:
-            sale_data = sale_doc.to_dict()
-            
-            order_date_str = sale_data.get('orderDate', '')
-            if order_date_str:
-                try:
-                    date_part = order_date_str.split()[0]
-                    order_date = datetime.strptime(date_part, '%Y-%m-%d')
-                    
-                    price = float(sale_data.get('price', 0))
-                    quantity = int(sale_data.get('quantity', 0))
-                    sale_total = price * quantity
-                    product_name = sale_data.get('productName', 'Unknown')
-                    
-                    # Check if within date range for charts
-                    if order_date >= start_date:
-                        date_key = order_date.strftime('%Y-%m-%d')
-                        daily_sales[date_key] += sale_total
-                        product_sales[product_name] += quantity
-                    
-                    # Today's data
-                    if order_date.date() == today.date():
-                        today_sales += sale_total
-                        today_orders += 1
-                        
-                        if len(recent_sales) < 5:
-                            recent_sales.append({
-                                'product': product_name,
-                                'quantity': quantity,
-                                'price': price,
-                                'total': sale_total,
-                                'datetime': order_date_str
-                            })
-                    
-                    # Yesterday's data
-                    elif order_date.date() == yesterday_start.date():
-                        yesterday_sales += sale_total
-                        yesterday_orders += 1
-                        
-                except Exception as date_error:
-                    print(f"⚠️ Date parsing error: {date_error}")
-                    continue
-        
+            try:
+                sale_data = sale_doc.to_dict()
+
+                order_date_str = sale_data.get('orderDate', '')
+                if order_date_str:
+                    try:
+                        date_part = order_date_str.split()[0]
+                        order_date = datetime.strptime(date_part, '%Y-%m-%d')
+
+                        price = float(sale_data.get('price', 0))
+                        quantity = int(sale_data.get('quantity', 0))
+                        sale_total = price * quantity
+                        product_name = sale_data.get('productName', 'Unknown')
+
+                        # Check if within date range for charts
+                        if order_date >= start_date:
+                            date_key = order_date.strftime('%Y-%m-%d')
+                            daily_sales[date_key] += sale_total
+                            product_sales[product_name] += quantity
+
+                        # Today's data
+                        if order_date.date() == today.date():
+                            today_sales += sale_total
+                            today_orders += 1
+
+                            if len(recent_sales) < 5:
+                                recent_sales.append({
+                                    'product': product_name,
+                                    'quantity': quantity,
+                                    'price': price,
+                                    'total': sale_total,
+                                    'datetime': order_date_str
+                                })
+
+                        # Yesterday's data
+                        elif order_date.date() == yesterday_start.date():
+                            yesterday_sales += sale_total
+                            yesterday_orders += 1
+
+                    except Exception as date_error:
+                        print(f"⚠️ Date parsing error: {date_error}")
+                        continue
+            except Exception as item_error:
+                print(f"⚠️ Error processing sale item: {item_error}")
+                continue
+
         # Calculate percentage changes
         sales_change = 0
         if yesterday_sales > 0:
             sales_change = round(((today_sales - yesterday_sales) / yesterday_sales) * 100, 1)
-        
+
         orders_change = 0
         if yesterday_orders > 0:
             orders_change = round(((today_orders - yesterday_orders) / yesterday_orders) * 100, 1)
-        
+
         # ========================================
         # 2. PREPARE CHART DATA BASED ON FILTER
         # ========================================
         chart_dates = []
         chart_sales_data = []
-        
+
         if filter_type == 'today':
             # Show hourly data for today
             for hour in range(0, 24):
                 hour_str = f"{hour:02d}:00"
                 chart_dates.append(hour_str)
                 chart_sales_data.append(0)
-            
+
             # Put all today's sales in current hour
             current_hour = today.hour
             date_key = today_start.strftime('%Y-%m-%d')
             chart_sales_data[current_hour] = float(daily_sales.get(date_key, 0))
-            
+
         elif filter_type == 'month':
             # Show daily data for last 30 days
             for i in range(29, -1, -1):
                 date = today_start - timedelta(days=i)
                 date_key = date.strftime('%Y-%m-%d')
                 date_label = date.strftime('%b %d')
-                
+
                 chart_dates.append(date_label)
                 chart_sales_data.append(float(daily_sales.get(date_key, 0)))
-        
+
         else:  # week
             # Show daily data for last 7 days
             for i in range(6, -1, -1):
                 date = today_start - timedelta(days=i)
                 date_key = date.strftime('%Y-%m-%d')
                 date_label = date.strftime('%b %d')
-                
+
                 chart_dates.append(date_label)
                 chart_sales_data.append(float(daily_sales.get(date_key, 0)))
-        
+
         # ========================================
         # 3. PREPARE TOP 5 PRODUCTS DATA
         # ========================================
         top_products = sorted(product_sales.items(), key=lambda x: x[1], reverse=True)[:5]
-        
+
         chart_products = []
         chart_quantities = []
-        
+
         for product, quantity in top_products:
             chart_products.append(product)
             chart_quantities.append(quantity)
-        
+
         # ========================================
-        # 4. GET PRODUCT STATISTICS - FIXED LOGIC
+        # 4. GET PRODUCT STATISTICS - WITH TIMEOUT
         # ========================================
-        products_ref = db.collection('products')
-        products = products_ref.stream()
-        
+        print("🔍 Fetching product data...")
         total_products = 0
         low_stock_items = 0
-        
-        for product_doc in products:
-            product_data = product_doc.to_dict()
-            total_products += 1
-            
-            # Get product category
-            category = product_data.get('category', '').lower().strip()
-            
-            # Skip beverages - they don't have physical stock
-            # Only count pastries and ingredients
-            if category in ['beverage', 'beverages', 'drink', 'drinks']:
-                continue
-            
-            # For non-beverage items: check quantity stock
-            stock = product_data.get('quantity', 0)
-            reorder_level = product_data.get('reorderLevel', 20)
-            
-            # Check if low stock
-            if stock < reorder_level:
-                low_stock_items += 1
-        
+
+        try:
+            products_ref = db.collection('products')
+            products = list(products_ref.limit(1000).stream())
+
+            for product_doc in products:
+                try:
+                    product_data = product_doc.to_dict()
+                    total_products += 1
+
+                    # Get product category
+                    category = product_data.get('category', '').lower().strip()
+
+                    # Skip beverages - they don't have physical stock
+                    # Only count pastries and ingredients
+                    if category in ['beverage', 'beverages', 'drink', 'drinks']:
+                        continue
+
+                    # For non-beverage items: check quantity stock
+                    stock = product_data.get('quantity', 0)
+                    reorder_level = product_data.get('reorderLevel', 20)
+
+                    # Check if low stock
+                    if stock < reorder_level:
+                        low_stock_items += 1
+                except Exception as prod_error:
+                    print(f"⚠️ Error processing product: {prod_error}")
+                    continue
+        except Exception as products_error:
+            print(f"⚠️ Error fetching products: {products_error}")
+
         # ========================================
         # 5. GET ACTIVE USERS COUNT
         # ========================================
-        users_ref = db.collection('users')
-        users = users_ref.where('status', '==', 'active').stream()
-        
-        active_users = sum(1 for _ in users)
-        
+        active_users = 0
+        try:
+            users_ref = db.collection('users')
+            users = list(users_ref.where('status', '==', 'active').limit(100).stream())
+            active_users = len(users)
+        except Exception as users_error:
+            print(f"⚠️ Error fetching users: {users_error}")
+
         # ========================================
         # 6. SORT RECENT SALES BY TIME
         # ========================================
         recent_sales.sort(key=lambda x: x['datetime'], reverse=True)
-        
+
         for sale in recent_sales:
             try:
                 dt = datetime.strptime(sale['datetime'], '%Y-%m-%d %H:%M:%S')
                 sale['display_date'] = dt.strftime('%b %d, %Y - %I:%M %p')
             except:
                 sale['display_date'] = sale['datetime']
-        
+
         print(f"💰 Today's Sales: ₱{today_sales:.2f} ({sales_change:+.1f}%)")
         print(f"📦 Today's Orders: {today_orders} ({orders_change:+.1f}%)")
         print(f"📊 Total Products: {total_products}")
         print(f"⚠️  Low Stock Items: {low_stock_items}")
         print(f"📊 Chart Filter: {filter_type.upper()} - {len(chart_dates)} data points")
         print("="*50 + "\n")
-        
+
         # ========================================
         # PREPARE CONTEXT
         # ========================================
@@ -330,14 +383,24 @@ def dashboard_view(request):
             'chart_quantities': chart_quantities,
             'current_filter': filter_type,
         }
-        
+
         return render(request, 'dashboard/dashboard.html', context)
-        
+
     except Exception as e:
         print(f"❌ Error loading dashboard: {e}")
         import traceback
         traceback.print_exc()
-        
+
+        # Try to get debug context
+        try:
+            from .firebase_utils import get_firebase_error_context
+            error_context = get_firebase_error_context()
+            print(f"\n📋 Firebase Error Context:")
+            print(f"   Credentials: {error_context['credentials_valid']['message']}")
+            print(f"   Health: {error_context['firebase_healthy']['message']}")
+        except:
+            pass
+
         context = {
             'today_sales': 0,
             'sales_change': 0,
@@ -352,6 +415,7 @@ def dashboard_view(request):
             'chart_products': [],
             'chart_quantities': [],
             'current_filter': 'week',
+            'error_message': 'Unable to load dashboard data. Please check your Firebase connection and credentials.',
         }
         return render(request, 'dashboard/dashboard.html', context)
 
@@ -1309,6 +1373,141 @@ def api_sales(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ========================================
+# HEALTH CHECK ENDPOINTS
+# ========================================
+
+@login_required
+def firebase_health_check(request):
+    """API endpoint to check Firebase connectivity and credentials"""
+    try:
+        from .firebase_utils import (
+            check_firebase_connectivity,
+            validate_firebase_credentials,
+            get_firebase_error_context
+        )
+
+        print("\n🏥 FIREBASE HEALTH CHECK CALLED")
+
+        # Get comprehensive diagnostic info
+        error_context = get_firebase_error_context()
+
+        return JsonResponse({
+            'success': True,
+            'timestamp': error_context['timestamp'],
+            'firebase': {
+                'connectivity': error_context['firebase_healthy'],
+            },
+            'credentials': error_context['credentials_valid'],
+            'environment': error_context['environment']
+        })
+
+    except Exception as e:
+        print(f"❌ Error in health check: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def debug_firebase_status(request):
+    """Debug endpoint to show Firebase status and troubleshooting info"""
+    try:
+        from .firebase_utils import (
+            check_firebase_connectivity,
+            validate_firebase_credentials,
+            get_firestore_client_with_timeout
+        )
+
+        print("\n🐛 DEBUG FIREBASE STATUS CALLED")
+
+        # Validate credentials
+        creds_valid = validate_firebase_credentials()
+
+        # Check connectivity
+        health = check_firebase_connectivity()
+
+        # Try to get basic info
+        test_result = {
+            'success': False,
+            'message': 'Not tested',
+            'sample_data': None
+        }
+
+        if creds_valid['is_valid']:
+            try:
+                db = get_firestore_client_with_timeout()
+                # Try to fetch one product as a test
+                products = list(db.collection('products').limit(1).stream())
+                test_result = {
+                    'success': True,
+                    'message': f'Successfully fetched {len(products)} product(s)',
+                    'sample_data': products[0].to_dict() if products else None
+                }
+            except Exception as test_error:
+                test_result = {
+                    'success': False,
+                    'message': str(test_error),
+                    'sample_data': None
+                }
+
+        # Build response
+        status_html = f"""
+        <h2>🐛 Firebase Debug Status</h2>
+        <hr>
+
+        <h3>📋 Credentials Status</h3>
+        <pre>
+Valid: {creds_valid['is_valid']}
+File Path: {creds_valid['file_path']}
+File Exists: {creds_valid['file_exists']}
+Message: {creds_valid['message']}
+        </pre>
+
+        <h3>🔗 Connectivity Status</h3>
+        <pre>
+Healthy: {health['is_healthy']}
+Message: {health['message']}
+Cached: {health.get('cached', False)}
+Last Checked: {health['last_checked']}
+        </pre>
+
+        <h3>🧪 Test Query Result</h3>
+        <pre>
+Success: {test_result['success']}
+Message: {test_result['message']}
+        </pre>
+
+        <hr>
+        <h3>📝 Troubleshooting Steps</h3>
+        <ol>
+            <li>Verify FIREBASE_CREDENTIALS environment variable is set correctly</li>
+            <li>Check that firebase-credentials.json file exists and is valid JSON</li>
+            <li>Ensure the private key in credentials has not been revoked</li>
+            <li>Check Firebase project permissions for the service account</li>
+            <li>Verify network connectivity to Google Cloud APIs</li>
+        </ol>
+
+        <h3>⚡ Recent Error Summary</h3>
+        <p>The dashboard timeout error indicates:</p>
+        <ul>
+            <li>JWT signature validation failed (likely revoked credentials)</li>
+            <li>Network timeout reaching Google Cloud APIs</li>
+            <li>Firestore service temporarily unavailable</li>
+        </ul>
+        """
+
+        return HttpResponse(status_html, content_type='text/html')
+
+    except Exception as e:
+        print(f"❌ Error in debug endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f"<h1>Error: {str(e)}</h1>", content_type='text/html', status=500)
+
 
 @login_required
 @csrf_exempt

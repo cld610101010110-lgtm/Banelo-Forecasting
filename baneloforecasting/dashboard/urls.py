@@ -17,6 +17,10 @@ urlpatterns = [
     # API endpoints for Firebase
     path('api/products/', views.api_products, name='api_products'),
     path('api/sales/', views.api_sales, name='api_sales'),
+
+    # Firebase Health Check endpoints
+    path('api/health/', views.firebase_health_check, name='firebase_health_check'),
+    path('api/debug/firebase/', views.debug_firebase_status, name='debug_firebase_status'),
     
     # CRUD endpoints for products (ADD, EDIT, DELETE)
     path('api/products/add/', views.add_product_view, name='add_product'),
