@@ -721,9 +721,9 @@
         <form id="recipeForm">
             <!-- Product Selection -->
             <div class="form-group">
-                <label class="form-label">Select Beverage Product</label>
+                <label class="form-label">Select Product (Beverage or Pastry)</label>
                 <select class="form-control" id="productSelect" required>
-                    <option value="">Choose a beverage...</option>
+                    <option value="">Choose a product...</option>
                     {% for beverage in beverages %}
                     <option value="{{ beverage.id }}">{{ beverage.name }}</option>
                     {% endfor %}

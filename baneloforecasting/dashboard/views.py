@@ -513,17 +513,17 @@ def inventory_view(request):
             
             print(f"   Image: {type(image_raw).__name__} -> '{image}' (has_image: {has_image})")
             
-            # Calculate max servings for beverages with recipes
+            # Calculate max servings for beverages and pastries with recipes
             max_servings = None
             recipe_found = False
-            
-            if category == 'beverage':
+
+            if category in ['beverage', 'pastries']:
                 # Try matching by Firebase ID first
                 if doc.id in recipes_by_id:
                     recipe_found = True
                     max_servings = calculate_max_servings(doc.id, recipes_by_id[doc.id]['recipeId'])
                     print(f"✅ Recipe matched by ID for: {data.get('name')}")
-                
+
                 # If not found, try matching by product name (for mobile POS products)
                 elif data.get('name', '').lower().strip() in recipes_by_name:
                     recipe_found = True
@@ -1615,17 +1615,22 @@ def recipes_view(request):
                 'ingredientCount': len(ingredients)
             })
         
-        # Get all beverage products for dropdown
+        # Get all beverage and pastry products for dropdown
         products_ref = db.collection('products')
-        products_docs = products_ref.where('category', '==', 'Beverages').stream()
-        
+        all_products_docs = products_ref.limit(1000).stream()
+
         beverages = []
-        for prod_doc in products_docs:
+        for prod_doc in all_products_docs:
             prod_data = prod_doc.to_dict()
-            beverages.append({
-                'id': prod_doc.id,
-                'name': prod_data.get('name', 'Unknown')
-            })
+            category = prod_data.get('category', '').lower().strip()
+
+            # Include both beverages and pastries
+            if category in ['beverage', 'beverages', 'pastries', 'pastry', 'drink', 'drinks', 'hot drinks', 'cold drinks', 'snacks', 'snack']:
+                beverages.append({
+                    'id': prod_doc.id,
+                    'name': prod_data.get('name', 'Unknown'),
+                    'category': category
+                })
         
         # Get all ingredients for dropdown
         ingredients_docs = products_ref.where('category', '==', 'Ingredients').stream()
@@ -1996,6 +2001,136 @@ def add_waste_api(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+def waste_tracking_view(request):
+    """Display waste tracking page with date filters and cost analysis"""
+    try:
+        print("\n🗑️ WASTE TRACKING VIEW CALLED")
+
+        # Get date filter parameters
+        from_date = request.GET.get('from_date', '')
+        to_date = request.GET.get('to_date', '')
+
+        # Get all waste logs from Firebase
+        waste_logs_ref = db.collection('waste_logs')
+
+        # Apply date filters if provided
+        if from_date:
+            from datetime import datetime
+            from_datetime = datetime.strptime(from_date, '%Y-%m-%d')
+            waste_logs_ref = waste_logs_ref.where('wasteDate', '>=', from_datetime)
+
+        if to_date:
+            from datetime import datetime
+            # Add 1 day to include the entire end date
+            to_datetime = datetime.strptime(to_date, '%Y-%m-%d')
+            # Set to end of day
+            from datetime import timedelta
+            to_datetime = to_datetime + timedelta(days=1)
+            waste_logs_ref = waste_logs_ref.where('wasteDate', '<', to_datetime)
+
+        # Order by date descending (newest first)
+        waste_logs_ref = waste_logs_ref.order_by('wasteDate', direction=firestore.Query.DESCENDING)
+
+        waste_docs = waste_logs_ref.stream()
+
+        waste_entries = []
+        total_waste_cost = 0
+        daily_costs = {}  # Track costs per day
+
+        for waste_doc in waste_docs:
+            waste_data = waste_doc.to_dict()
+
+            product_id = waste_data.get('productFirebaseId', '')
+            quantity = waste_data.get('quantity', 0)
+
+            # Get product details to calculate cost
+            waste_cost = 0
+            product_name = waste_data.get('productName', 'Unknown')
+            category = waste_data.get('category', 'Unknown')
+
+            if product_id:
+                try:
+                    product_doc = db.collection('products').document(product_id).get()
+                    if product_doc.exists:
+                        product_data = product_doc.to_dict()
+                        cost_per_unit = product_data.get('costPerUnit', 0)
+                        waste_cost = quantity * cost_per_unit
+                        product_name = product_data.get('name', product_name)
+                        category = product_data.get('category', category)
+                except Exception as e:
+                    print(f"⚠️ Could not fetch product details for {product_id}: {e}")
+
+            # Get waste date
+            waste_date = waste_data.get('wasteDate')
+            if waste_date:
+                # Convert Firebase timestamp to datetime
+                if hasattr(waste_date, 'strftime'):
+                    date_str = waste_date.strftime('%Y-%m-%d')
+                    date_display = waste_date.strftime('%b %d, %Y %I:%M %p')
+
+                    # Track daily costs
+                    if date_str not in daily_costs:
+                        daily_costs[date_str] = 0
+                    daily_costs[date_str] += waste_cost
+                else:
+                    date_str = 'Unknown'
+                    date_display = 'Unknown'
+            else:
+                date_str = 'Unknown'
+                date_display = 'Unknown'
+
+            total_waste_cost += waste_cost
+
+            waste_entries.append({
+                'id': waste_doc.id,
+                'productName': product_name,
+                'productId': product_id,
+                'quantity': quantity,
+                'reason': waste_data.get('reason', 'Unknown'),
+                'wasteDate': date_display,
+                'dateStr': date_str,
+                'recordedBy': waste_data.get('recordedBy', 'Unknown'),
+                'category': category,
+                'wasteCost': waste_cost
+            })
+
+        # Sort daily costs by date
+        daily_costs_list = [
+            {'date': date, 'cost': cost}
+            for date, cost in sorted(daily_costs.items(), reverse=True)
+        ]
+
+        print(f"✅ Loaded {len(waste_entries)} waste entries")
+        print(f"💰 Total waste cost: ₱{total_waste_cost:.2f}")
+
+        context = {
+            'waste_entries': waste_entries,
+            'total_waste_cost': total_waste_cost,
+            'daily_costs': daily_costs_list,
+            'from_date': from_date,
+            'to_date': to_date,
+            'entry_count': len(waste_entries)
+        }
+
+        return render(request, 'dashboard/waste_tracking.html', context)
+
+    except Exception as e:
+        print(f"❌ Error loading waste tracking: {e}")
+        import traceback
+        traceback.print_exc()
+
+        context = {
+            'waste_entries': [],
+            'total_waste_cost': 0,
+            'daily_costs': [],
+            'from_date': '',
+            'to_date': '',
+            'entry_count': 0
+        }
+        return render(request, 'dashboard/waste_tracking.html', context)
 
 
 @login_required
