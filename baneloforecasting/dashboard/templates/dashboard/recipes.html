@@ -890,7 +890,7 @@ document.getElementById('recipeForm').addEventListener('submit', async function(
         const ingredients = [];
         ingredientSelects.forEach((select, index) => {
             if (select.value && quantityInputs[index].value) {
-                const ingredientName = select.options[select.selectedIndex].text.split(' (Stock:')[0];
+                const ingredientName = select.options[select.selectedIndex].text.split(' - Stock:')[0];
                 ingredients.push({
                     ingredientFirebaseId: select.value,
                     ingredientName: ingredientName,
