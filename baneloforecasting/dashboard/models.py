@@ -5,15 +5,20 @@ class Product(models.Model):
     firebase_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=100)
-    stock = models.FloatField(default=0)
+    stock = models.FloatField(default=0)  # Legacy field - now using inventoryA and inventoryB
     unit = models.CharField(max_length=50, default='pcs')
     price = models.FloatField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
+    # New inventory fields for dual inventory system
+    inventory_a = models.FloatField(default=0, help_text='Main Warehouse Stock')
+    inventory_b = models.FloatField(default=0, help_text='Expendable Stock (used for orders)')
+    cost_per_unit = models.FloatField(default=0, help_text='Cost per unit for ingredients')
+
     def __str__(self):
         return self.name
-    
+
     class Meta:
         db_table = 'products'
 

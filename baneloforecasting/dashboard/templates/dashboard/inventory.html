@@ -1082,17 +1082,45 @@
                             <div class="product-price">₱ {{ product.price }}</div>
                             <div class="product-category">Category: {{ product.category }}</div>
 
-                            <!-- ✅ Show either Max Servings OR Stock -->
+                            <!-- ✅ Show either Max Servings OR Dual Inventory System -->
                             {% if product.category == 'beverage' and product.has_recipe %}
                             <!-- For beverages WITH recipes: show max servings as "stock" -->
                             <div class="product-stock {% if product.max_servings < 10 %}critical{% elif product.max_servings < 20 %}low{% endif %}">
                                 <i class="fas fa-calculator"></i> Stock: {{ product.max_servings }} servings
                             </div>
                             {% else %}
-                            <!-- For everything else: show regular stock -->
-                            <div class="product-stock {% if product.stock < 20 %}critical{% elif product.stock < 40 %}low{% endif %}">
-                                Stock: {{ product.stock }}
+                            <!-- For everything else: show dual inventory system -->
+                            <div style="font-size: 13px; margin-top: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="color: #666;"><i class="fas fa-warehouse"></i> Inv A:</span>
+                                    <span style="font-weight: 600; color: #2196F3;">{{ product.inventory_a }}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="color: #666;"><i class="fas fa-box-open"></i> Inv B:</span>
+                                    <span style="font-weight: 600; color: #4CAF50;">{{ product.inventory_b }}</span>
+                                </div>
+                                {% if product.category == 'ingredients' %}
+                                <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee;">
+                                    <span style="color: #666;"><i class="fas fa-dollar-sign"></i> Cost:</span>
+                                    <span style="font-weight: 600; color: #FF9800;">₱{{ product.cost_per_unit }}</span>
+                                </div>
+                                {% endif %}
                             </div>
+                            <!-- Action buttons for Ingredients category -->
+                            {% if product.category == 'ingredients' %}
+                            <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                <button onclick="openTransferModal('{{ product.id }}', '{{ product.name }}', {{ product.inventory_a }})"
+                                        style="flex: 1; background: #2196F3; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                                        title="Transfer from Inventory A to Inventory B">
+                                    <i class="fas fa-exchange-alt"></i> Transfer
+                                </button>
+                                <button onclick="openWasteModal('{{ product.id }}', '{{ product.name }}', {{ product.inventory_b }})"
+                                        style="flex: 1; background: #F44336; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                                        title="Record waste from Inventory B">
+                                    <i class="fas fa-trash-alt"></i> Waste
+                                </button>
+                            </div>
+                            {% endif %}
                             {% endif %}
                         </div>
 
@@ -1787,6 +1815,140 @@
                 }
             });
 
+            // ========================================
+            // INVENTORY TRANSFER MODAL FUNCTIONS
+            // ========================================
+
+            function openTransferModal(productId, productName, availableQty) {
+                document.getElementById('transferModal').classList.add('active');
+                document.getElementById('transferProductId').value = productId;
+                document.getElementById('transferProductName').value = productName;
+                document.getElementById('transferAvailable').value = availableQty;
+                document.getElementById('transferQuantity').value = '';
+                document.getElementById('transferQuantity').max = availableQty;
+            }
+
+            function closeTransferModal() {
+                document.getElementById('transferModal').classList.remove('active');
+            }
+
+            document.getElementById('transferForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const submitBtn = e.target.querySelector('.btn-submit');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Transferring...';
+                submitBtn.disabled = true;
+
+                try {
+                    const productId = document.getElementById('transferProductId').value;
+                    const quantity = parseFloat(document.getElementById('transferQuantity').value);
+
+                    const response = await fetch('/dashboard/api/inventory/transfer/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({
+                            productId: productId,
+                            quantity: quantity
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        closeTransferModal();
+                        showNotification(result.message, 'success');
+                    } else {
+                        showNotification(result.message, 'error');
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Failed to transfer inventory. Please try again.', 'error');
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+
+            // Close transfer modal when clicking outside
+            document.getElementById('transferModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeTransferModal();
+                }
+            });
+
+            // ========================================
+            // WASTE MANAGEMENT MODAL FUNCTIONS
+            // ========================================
+
+            function openWasteModal(productId, productName, availableQty) {
+                document.getElementById('wasteModal').classList.add('active');
+                document.getElementById('wasteProductId').value = productId;
+                document.getElementById('wasteProductName').value = productName;
+                document.getElementById('wasteAvailable').value = availableQty;
+                document.getElementById('wasteQuantity').value = '';
+                document.getElementById('wasteQuantity').max = availableQty;
+            }
+
+            function closeWasteModal() {
+                document.getElementById('wasteModal').classList.remove('active');
+            }
+
+            document.getElementById('wasteForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const submitBtn = e.target.querySelector('.btn-submit');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recording Waste...';
+                submitBtn.disabled = true;
+
+                try {
+                    const productId = document.getElementById('wasteProductId').value;
+                    const quantity = parseFloat(document.getElementById('wasteQuantity').value);
+                    const reason = document.getElementById('wasteReason').value;
+
+                    const response = await fetch('/dashboard/api/waste/add/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({
+                            productId: productId,
+                            quantity: quantity,
+                            reason: reason
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        closeWasteModal();
+                        showNotification(result.message, 'success');
+                    } else {
+                        showNotification(result.message, 'error');
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Failed to record waste. Please try again.', 'error');
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+
+            // Close waste modal when clicking outside
+            document.getElementById('wasteModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeWasteModal();
+                }
+            });
+
                 </script>
                 <!-- ========================================
         CUSTOM NOTIFICATION MODAL
@@ -1824,6 +1986,91 @@
                                 <i class="fas fa-times"></i> Cancel
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ========================================
+        INVENTORY TRANSFER MODAL (A → B)
+        ======================================== -->
+                <div class="modal" id="transferModal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title">Transfer Inventory A → B</h2>
+                            <button class="btn-close" onclick="closeTransferModal()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <form id="transferForm">
+                            <input type="hidden" id="transferProductId">
+
+                            <div class="form-group">
+                                <label class="form-label">Product</label>
+                                <input type="text" class="form-control" id="transferProductName" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Available in Inventory A</label>
+                                <input type="text" class="form-control" id="transferAvailable" readonly style="background: #f5f5f5;">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Transfer Quantity</label>
+                                <input type="number" class="form-control" id="transferQuantity" placeholder="Enter quantity to transfer" min="0.01" step="0.01" required>
+                            </div>
+
+                            <button type="submit" class="btn-submit">
+                                <i class="fas fa-exchange-alt"></i> Transfer to Inventory B
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- ========================================
+        WASTE MANAGEMENT MODAL (B → Waste)
+        ======================================== -->
+                <div class="modal" id="wasteModal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title">Record Waste</h2>
+                            <button class="btn-close" onclick="closeWasteModal()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <form id="wasteForm">
+                            <input type="hidden" id="wasteProductId">
+
+                            <div class="form-group">
+                                <label class="form-label">Product</label>
+                                <input type="text" class="form-control" id="wasteProductName" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Available in Inventory B</label>
+                                <input type="text" class="form-control" id="wasteAvailable" readonly style="background: #f5f5f5;">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Waste Quantity</label>
+                                <input type="number" class="form-control" id="wasteQuantity" placeholder="Enter quantity to record as waste" min="0.01" step="0.01" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Reason</label>
+                                <select class="form-control" id="wasteReason" required>
+                                    <option value="Expired">Expired</option>
+                                    <option value="Damaged">Damaged</option>
+                                    <option value="Spoiled">Spoiled</option>
+                                    <option value="Contaminated">Contaminated</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn-submit" style="background: linear-gradient(135deg, #F44336 0%, #C62828 100%);">
+                                <i class="fas fa-trash-alt"></i> Record Waste
+                            </button>
+                        </form>
                     </div>
                 </div>
 

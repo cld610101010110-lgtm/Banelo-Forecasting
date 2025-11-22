@@ -42,6 +42,8 @@ urlpatterns = [
     path('inventory/forecasting/', views.inventory_forecasting_view, name='inventory_forecasting'),
     path('api/train-forecasting/', views.train_forecasting_model, name='train_forecasting_model'),
 
-   
+    # Inventory Transfer and Waste Management
+    path('api/inventory/transfer/', views.transfer_inventory_api, name='transfer_inventory_api'),
+    path('api/waste/add/', views.add_waste_api, name='add_waste_api'),
 
 ]

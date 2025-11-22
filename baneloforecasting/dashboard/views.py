@@ -531,12 +531,20 @@ def inventory_view(request):
                     max_servings = calculate_max_servings(doc.id, recipes_by_name[product_name_key]['recipeId'])
                     print(f"✅ Recipe matched by NAME for: {data.get('name')}")
             
+            # Get inventory data (with fallback to legacy 'quantity' field)
+            inventory_a = data.get('inventoryA', data.get('quantity', 0))
+            inventory_b = data.get('inventoryB', 0)
+            cost_per_unit = data.get('costPerUnit', 0)
+
             products_data.append({
                 'id': doc.id,
                 'name': data.get('name', 'Unknown'),
                 'price': data.get('price', 0),
                 'category': category,  # Use normalized category
-                'stock': data.get('quantity', 0),
+                'stock': data.get('quantity', 0),  # Legacy field
+                'inventory_a': inventory_a,
+                'inventory_b': inventory_b,
+                'cost_per_unit': cost_per_unit,
                 'image': image,
                 'has_image': has_image,
                 'max_servings': max_servings,
@@ -1572,12 +1580,31 @@ def recipes_view(request):
             ingredients = []
             for ing_doc in ingredients_query:
                 ing_data = ing_doc.to_dict()
+                ingredient_id = ing_data.get('ingredientFirebaseId', '')
+
+                # Get ingredient product details (cost and stock)
+                ingredient_cost = 0
+                ingredient_stock = 0
+                if ingredient_id:
+                    try:
+                        ing_product_doc = db.collection('products').document(ingredient_id).get()
+                        if ing_product_doc.exists:
+                            ing_product_data = ing_product_doc.to_dict()
+                            ingredient_cost = ing_product_data.get('costPerUnit', 0)
+                            inventory_a = ing_product_data.get('inventoryA', ing_product_data.get('quantity', 0))
+                            inventory_b = ing_product_data.get('inventoryB', 0)
+                            ingredient_stock = inventory_a + inventory_b
+                    except Exception as e:
+                        print(f"⚠️ Could not fetch ingredient details for {ingredient_id}: {e}")
+
                 ingredients.append({
                     'id': ing_doc.id,
                     'name': ing_data.get('ingredientName', 'Unknown'),
                     'quantity': ing_data.get('quantityNeeded', 0),
                     'unit': ing_data.get('unit', 'g'),
-                    'ingredientFirebaseId': ing_data.get('ingredientFirebaseId', '')
+                    'ingredientFirebaseId': ingredient_id,
+                    'cost_per_unit': ingredient_cost,
+                    'stock': ingredient_stock
                 })
             
             recipes_list.append({
@@ -1602,14 +1629,22 @@ def recipes_view(request):
         
         # Get all ingredients for dropdown
         ingredients_docs = products_ref.where('category', '==', 'Ingredients').stream()
-        
+
         available_ingredients = []
         for ing_doc in ingredients_docs:
             ing_data = ing_doc.to_dict()
+            # Get inventory data (with fallback to legacy 'quantity' field)
+            inventory_a = ing_data.get('inventoryA', ing_data.get('quantity', 0))
+            inventory_b = ing_data.get('inventoryB', 0)
+            total_stock = inventory_a + inventory_b
+
             available_ingredients.append({
                 'id': ing_doc.id,
                 'name': ing_data.get('name', 'Unknown'),
-                'stock': ing_data.get('quantity', 0),
+                'stock': total_stock,
+                'inventory_a': inventory_a,
+                'inventory_b': inventory_b,
+                'cost_per_unit': ing_data.get('costPerUnit', 0),
                 'unit': 'g'  # Default unit
             })
         
@@ -1817,6 +1852,150 @@ def delete_recipe_api(request):
 
 
 
+
+
+# ============================================
+# INVENTORY TRANSFER API (A → B)
+# ============================================
+
+@login_required
+@require_http_methods(["POST"])
+def transfer_inventory_api(request):
+    """Transfer stock from Inventory A (Main Warehouse) to Inventory B (Expendable Stock)"""
+    try:
+        data = json.loads(request.body)
+        print("\n🔄 INVENTORY TRANSFER API CALLED")
+        print(f"Data received: {data}")
+
+        product_id = data.get('productId')
+        transfer_qty = float(data.get('quantity', 0))
+
+        if not product_id or transfer_qty <= 0:
+            return JsonResponse({'success': False, 'message': 'Invalid product or quantity'})
+
+        # Get product from Firebase
+        product_ref = db.collection('products').document(product_id)
+        product_doc = product_ref.get()
+
+        if not product_doc.exists:
+            return JsonResponse({'success': False, 'message': 'Product not found'})
+
+        product_data = product_doc.to_dict()
+        product_name = product_data.get('name', 'Unknown')
+        inventory_a = float(product_data.get('inventoryA', 0))
+        inventory_b = float(product_data.get('inventoryB', 0))
+
+        # Check if sufficient stock in Inventory A
+        if inventory_a < transfer_qty:
+            return JsonResponse({
+                'success': False,
+                'message': f'Insufficient stock in Inventory A. Available: {inventory_a:.2f}'
+            })
+
+        # Perform transfer
+        new_inventory_a = inventory_a - transfer_qty
+        new_inventory_b = inventory_b + transfer_qty
+
+        # Update Firebase
+        product_ref.update({
+            'inventoryA': new_inventory_a,
+            'inventoryB': new_inventory_b,
+            'quantity': new_inventory_b  # Update legacy quantity field to match inventoryB
+        })
+
+        print(f"✅ Transferred {transfer_qty} units of {product_name}")
+        print(f"   Inventory A: {inventory_a} → {new_inventory_a}")
+        print(f"   Inventory B: {inventory_b} → {new_inventory_b}")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully transferred {transfer_qty} units of {product_name} to Inventory B',
+            'newInventoryA': new_inventory_a,
+            'newInventoryB': new_inventory_b
+        })
+
+    except Exception as e:
+        print(f"❌ Error in transfer: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+# ============================================
+# WASTE MANAGEMENT API (B → Waste)
+# ============================================
+
+@login_required
+@require_http_methods(["POST"])
+def add_waste_api(request):
+    """Transfer items from Inventory B to Waste logs"""
+    try:
+        data = json.loads(request.body)
+        print("\n🗑️ WASTE MANAGEMENT API CALLED")
+        print(f"Data received: {data}")
+
+        product_id = data.get('productId')
+        waste_qty = float(data.get('quantity', 0))
+        reason = data.get('reason', 'Expired')
+
+        if not product_id or waste_qty <= 0:
+            return JsonResponse({'success': False, 'message': 'Invalid product or quantity'})
+
+        # Get product from Firebase
+        product_ref = db.collection('products').document(product_id)
+        product_doc = product_ref.get()
+
+        if not product_doc.exists:
+            return JsonResponse({'success': False, 'message': 'Product not found'})
+
+        product_data = product_doc.to_dict()
+        product_name = product_data.get('name', 'Unknown')
+        inventory_b = float(product_data.get('inventoryB', 0))
+
+        # Check if sufficient stock in Inventory B
+        if inventory_b < waste_qty:
+            return JsonResponse({
+                'success': False,
+                'message': f'Insufficient stock in Inventory B. Available: {inventory_b:.2f}'
+            })
+
+        # Deduct from Inventory B
+        new_inventory_b = inventory_b - waste_qty
+
+        # Update Firebase
+        product_ref.update({
+            'inventoryB': new_inventory_b,
+            'quantity': new_inventory_b  # Update legacy quantity field
+        })
+
+        # Create waste log entry
+        waste_data = {
+            'productFirebaseId': product_id,
+            'productName': product_name,
+            'quantity': waste_qty,
+            'reason': reason,
+            'wasteDate': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'recordedBy': request.user.username,
+            'category': product_data.get('category', 'Unknown')
+        }
+
+        db.collection('waste_logs').add(waste_data)
+
+        print(f"✅ Recorded waste: {waste_qty} units of {product_name}")
+        print(f"   Inventory B: {inventory_b} → {new_inventory_b}")
+        print(f"   Reason: {reason}")
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully recorded {waste_qty} units of {product_name} as waste',
+            'newInventoryB': new_inventory_b
+        })
+
+    except Exception as e:
+        print(f"❌ Error in waste management: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': str(e)})
 
 
 @login_required
