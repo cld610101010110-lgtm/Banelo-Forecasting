@@ -680,9 +680,15 @@
 
             <ul class="ingredients-list">
                 {% for ingredient in recipe.ingredients %}
-                <li class="ingredient-item">
-                    <span class="ingredient-name">{{ ingredient.name }}</span>
-                    <span class="ingredient-quantity">{{ ingredient.quantity }} {{ ingredient.unit }}</span>
+                <li class="ingredient-item" style="flex-direction: column; align-items: flex-start; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 6px;">
+                        <span class="ingredient-name" style="font-weight: 600; color: #3E2723;">{{ ingredient.name }}</span>
+                        <span class="ingredient-quantity" style="color: #D84315; font-weight: 700;">{{ ingredient.quantity }} {{ ingredient.unit }}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; width: 100%; font-size: 12px; color: #666;">
+                        <span><i class="fas fa-dollar-sign" style="color: #FF9800;"></i> Cost: ₱{{ ingredient.cost_per_unit }}/{{ ingredient.unit }}</span>
+                        <span><i class="fas fa-boxes" style="color: #4CAF50;"></i> Stock: {{ ingredient.stock }}{{ ingredient.unit }}</span>
+                    </div>
                 </li>
                 {% endfor %}
             </ul>
@@ -841,7 +847,7 @@ function addIngredientRow(selectedIngredient = '', quantity = '') {
             <option value="">Select ingredient...</option>
             ${availableIngredients.map(ing =>
                 `<option value="${ing.id}" ${ing.id === selectedIngredient ? 'selected' : ''}>
-                    ${ing.name} (Stock: ${ing.stock}g)
+                    ${ing.name} - Stock: ${ing.stock}g - Cost: ₱${ing.cost_per_unit}/g
                 </option>`
             ).join('')}
         </select>
