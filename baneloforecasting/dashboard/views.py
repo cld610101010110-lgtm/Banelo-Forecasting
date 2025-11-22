@@ -2014,26 +2014,8 @@ def waste_tracking_view(request):
         to_date = request.GET.get('to_date', '')
 
         # Get all waste logs from Firebase
+        # Note: We fetch all documents and filter/sort in Python to avoid Firestore index requirements
         waste_logs_ref = db.collection('waste_logs')
-
-        # Apply date filters if provided
-        if from_date:
-            from datetime import datetime
-            from_datetime = datetime.strptime(from_date, '%Y-%m-%d')
-            waste_logs_ref = waste_logs_ref.where('wasteDate', '>=', from_datetime)
-
-        if to_date:
-            from datetime import datetime
-            # Add 1 day to include the entire end date
-            to_datetime = datetime.strptime(to_date, '%Y-%m-%d')
-            # Set to end of day
-            from datetime import timedelta
-            to_datetime = to_datetime + timedelta(days=1)
-            waste_logs_ref = waste_logs_ref.where('wasteDate', '<', to_datetime)
-
-        # Order by date descending (newest first)
-        waste_logs_ref = waste_logs_ref.order_by('wasteDate', direction=firestore.Query.DESCENDING)
-
         waste_docs = waste_logs_ref.stream()
 
         waste_entries = []
@@ -2065,22 +2047,38 @@ def waste_tracking_view(request):
 
             # Get waste date
             waste_date = waste_data.get('wasteDate')
-            if waste_date:
-                # Convert Firebase timestamp to datetime
-                if hasattr(waste_date, 'strftime'):
-                    date_str = waste_date.strftime('%Y-%m-%d')
-                    date_display = waste_date.strftime('%b %d, %Y %I:%M %p')
+            date_str = 'Unknown'
+            date_display = 'Unknown'
+            date_obj = None
 
-                    # Track daily costs
-                    if date_str not in daily_costs:
-                        daily_costs[date_str] = 0
-                    daily_costs[date_str] += waste_cost
-                else:
-                    date_str = 'Unknown'
-                    date_display = 'Unknown'
-            else:
-                date_str = 'Unknown'
-                date_display = 'Unknown'
+            if waste_date:
+                try:
+                    # Handle both Firestore Timestamp and string formats
+                    if hasattr(waste_date, 'strftime'):
+                        # It's already a datetime/timestamp object
+                        date_obj = waste_date
+                        date_str = waste_date.strftime('%Y-%m-%d')
+                        date_display = waste_date.strftime('%b %d, %Y %I:%M %p')
+                    elif isinstance(waste_date, str):
+                        # It's a string, parse it
+                        from datetime import datetime
+                        # Try parsing common formats
+                        for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d']:
+                            try:
+                                date_obj = datetime.strptime(waste_date, fmt)
+                                date_str = date_obj.strftime('%Y-%m-%d')
+                                date_display = date_obj.strftime('%b %d, %Y %I:%M %p')
+                                break
+                            except ValueError:
+                                continue
+                except Exception as e:
+                    print(f"⚠️ Could not parse date '{waste_date}': {e}")
+
+            # Track daily costs
+            if date_str != 'Unknown':
+                if date_str not in daily_costs:
+                    daily_costs[date_str] = 0
+                daily_costs[date_str] += waste_cost
 
             total_waste_cost += waste_cost
 
@@ -2092,10 +2090,51 @@ def waste_tracking_view(request):
                 'reason': waste_data.get('reason', 'Unknown'),
                 'wasteDate': date_display,
                 'dateStr': date_str,
+                'dateObj': date_obj,  # Store datetime object for filtering/sorting
                 'recordedBy': waste_data.get('recordedBy', 'Unknown'),
                 'category': category,
                 'wasteCost': waste_cost
             })
+
+        # Apply date filters in Python
+        if from_date or to_date:
+            from datetime import datetime, timedelta
+            filtered_entries = []
+
+            for entry in waste_entries:
+                if entry['dateObj'] is None:
+                    continue  # Skip entries with unknown dates when filtering
+
+                include = True
+
+                if from_date:
+                    from_datetime = datetime.strptime(from_date, '%Y-%m-%d')
+                    if entry['dateObj'] < from_datetime:
+                        include = False
+
+                if to_date and include:
+                    to_datetime = datetime.strptime(to_date, '%Y-%m-%d') + timedelta(days=1)
+                    if entry['dateObj'] >= to_datetime:
+                        include = False
+
+                if include:
+                    filtered_entries.append(entry)
+
+            waste_entries = filtered_entries
+
+            # Recalculate totals after filtering
+            total_waste_cost = sum(entry['wasteCost'] for entry in waste_entries)
+            daily_costs = {}
+            for entry in waste_entries:
+                date_str = entry['dateStr']
+                if date_str != 'Unknown':
+                    if date_str not in daily_costs:
+                        daily_costs[date_str] = 0
+                    daily_costs[date_str] += entry['wasteCost']
+
+        # Sort waste entries by date (newest first)
+        from datetime import datetime
+        waste_entries.sort(key=lambda x: x['dateObj'] if x['dateObj'] else datetime.min, reverse=True)
 
         # Sort daily costs by date
         daily_costs_list = [
