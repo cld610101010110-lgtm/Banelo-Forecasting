@@ -1089,11 +1089,18 @@
                             <div class="product-category">Category: {{ product.category }}</div>
 
                             <!-- ✅ Show either Max Servings OR Dual Inventory System -->
-                            {% if product.category in ['beverage', 'pastries'] and product.has_recipe %}
-                            <!-- For beverages and pastries WITH recipes: show available servings -->
-                            <div class="product-stock {% if product.max_servings is not none %}{% if product.max_servings < 10 %}critical{% elif product.max_servings < 20 %}low{% endif %}{% endif %}">
-                                <i class="fas fa-calculator"></i> Available: {{ product.max_servings|default:0 }} servings
-                            </div>
+                            {% if product.category == 'beverage' or product.category == 'pastries' %}
+                                {% if product.has_recipe %}
+                                <!-- For beverages and pastries WITH recipes: show available servings -->
+                                <div class="product-stock {% if product.max_servings is not none %}{% if product.max_servings < 10 %}critical{% elif product.max_servings < 20 %}low{% endif %}{% endif %}">
+                                    <i class="fas fa-calculator"></i> Available: {{ product.max_servings|default:0 }} servings
+                                </div>
+                                {% else %}
+                                <!-- For beverages/pastries without recipes: show message -->
+                                <div class="product-stock" style="color: #999;">
+                                    <i class="fas fa-info-circle"></i> No recipe defined
+                                </div>
+                                {% endif %}
                             {% elif product.category == 'ingredients' %}
                             <!-- For ingredients: show dual inventory system with cost -->
                             <div style="font-size: 13px; margin-top: 8px;">
@@ -1111,7 +1118,7 @@
                                 </div>
                             </div>
                             {% else %}
-                            <!-- For products without recipes: show message -->
+                            <!-- For other products: show message -->
                             <div class="product-stock" style="color: #999;">
                                 <i class="fas fa-info-circle"></i> No recipe defined
                             </div>
