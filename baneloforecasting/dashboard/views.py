@@ -410,15 +410,18 @@ def inventory_view(request):
 
         recipes_by_id = {}
         recipes_by_name = {}
+        recipe_ingredients_map = {}  # Store ingredients for each recipe
 
         for recipe in recipes:
             product_id = recipe.get('product_firebase_id') or recipe.get('productFirebaseId')
             product_name = (recipe.get('product_name') or recipe.get('productName') or '').lower().strip()
+            recipe_id = recipe.get('id')
 
             recipe_info = {
-                'recipeId': recipe.get('id'),
+                'recipeId': recipe_id,
                 'firebaseId': recipe.get('firebase_id') or recipe.get('firebaseId'),
-                'productName': recipe.get('product_name') or recipe.get('productName')
+                'productName': recipe.get('product_name') or recipe.get('productName'),
+                'ingredients': recipe.get('ingredients', [])  # Get ingredients from recipe
             }
 
             if product_id:
@@ -429,7 +432,24 @@ def inventory_view(request):
                 recipes_by_name[product_name] = recipe_info
                 print(f"📋 Recipe found by Name: {product_name}")
 
+            # Also fetch ingredients if not included in recipe data
+            if recipe_id and not recipe_info['ingredients']:
+                try:
+                    ingredients = api.get_recipe_ingredients(recipe_id)
+                    recipe_info['ingredients'] = ingredients
+                except:
+                    pass
+
         print(f"✅ Found {len(recipes_by_id)} recipes by ID, {len(recipes_by_name)} by name")
+
+        # Build ingredient inventory lookup (firebase_id -> inventory_b)
+        ingredient_stock_lookup = {}
+        for product in products:
+            fb_id = product.get('firebase_id') or product.get('firebaseId') or ''
+            # Use inventory_b (expendable stock) for calculating available servings
+            inv_b = float(product.get('inventory_b') or product.get('inventoryB') or 0)
+            if fb_id:
+                ingredient_stock_lookup[fb_id] = inv_b
 
         # Process products data
         products_data = []
@@ -479,18 +499,48 @@ def inventory_view(request):
             product_name = product.get('name', 'Unknown')
 
             if category in ['beverage', 'pastries']:
+                recipe_info = None
+
                 # Try matching by Firebase ID first
                 if firebase_id in recipes_by_id:
                     recipe_found = True
-                    # Note: max_servings calculation would need API call or be done server-side
-                    max_servings = None  # Will be calculated via API if needed
+                    recipe_info = recipes_by_id[firebase_id]
                     print(f"✅ Recipe matched by ID for: {product_name}")
 
                 # If not found, try matching by product name
                 elif product_name.lower().strip() in recipes_by_name:
                     recipe_found = True
-                    max_servings = None  # Will be calculated via API if needed
+                    recipe_info = recipes_by_name[product_name.lower().strip()]
                     print(f"✅ Recipe matched by NAME for: {product_name}")
+
+                # Calculate max servings based on ingredients
+                if recipe_found and recipe_info:
+                    ingredients = recipe_info.get('ingredients', [])
+                    if ingredients:
+                        servings_list = []
+                        for ing in ingredients:
+                            # Get ingredient firebase ID
+                            ing_fb_id = ing.get('ingredient_firebase_id') or ing.get('ingredientFirebaseId') or ing.get('id', '')
+                            # Get quantity needed per serving
+                            qty_needed = float(ing.get('quantity_needed') or ing.get('quantityNeeded') or ing.get('quantity', 0) or 0)
+
+                            if ing_fb_id and qty_needed > 0:
+                                # Get available stock from inventory_b (expendable stock)
+                                available_stock = ingredient_stock_lookup.get(ing_fb_id, 0)
+                                # Calculate max servings from this ingredient
+                                max_from_ing = int(available_stock / qty_needed)
+                                servings_list.append(max_from_ing)
+                                print(f"   📦 {ing.get('ingredient_name') or ing.get('ingredientName') or ing.get('name', 'Unknown')}: {available_stock}/{qty_needed} = {max_from_ing} servings")
+
+                        # Max servings is limited by the bottleneck ingredient
+                        if servings_list:
+                            max_servings = min(servings_list)
+                            print(f"   🎯 Max servings for {product_name}: {max_servings}")
+                        else:
+                            max_servings = 0
+                    else:
+                        # Has recipe but no ingredients defined
+                        max_servings = 0
 
             # Get inventory data
             inventory_a = float(product.get('inventory_a') or product.get('inventoryA') or product.get('quantity', 0) or 0)

@@ -1089,13 +1089,13 @@
                             <div class="product-category">Category: {{ product.category }}</div>
 
                             <!-- ✅ Show either Max Servings OR Dual Inventory System -->
-                            {% if product.category == 'beverage' and product.has_recipe %}
-                            <!-- For beverages WITH recipes: show max servings as "stock" -->
-                            <div class="product-stock {% if product.max_servings < 10 %}critical{% elif product.max_servings < 20 %}low{% endif %}">
-                                <i class="fas fa-calculator"></i> Stock: {{ product.max_servings }} servings
+                            {% if product.category in ['beverage', 'pastries'] and product.has_recipe %}
+                            <!-- For beverages and pastries WITH recipes: show available servings -->
+                            <div class="product-stock {% if product.max_servings is not none %}{% if product.max_servings < 10 %}critical{% elif product.max_servings < 20 %}low{% endif %}{% endif %}">
+                                <i class="fas fa-calculator"></i> Available: {{ product.max_servings|default:0 }} servings
                             </div>
-                            {% else %}
-                            <!-- For everything else: show dual inventory system -->
+                            {% elif product.category == 'ingredients' %}
+                            <!-- For ingredients: show dual inventory system with cost -->
                             <div style="font-size: 13px; margin-top: 8px;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span style="color: #666;"><i class="fas fa-warehouse"></i> Inv A:</span>
@@ -1105,13 +1105,17 @@
                                     <span style="color: #666;"><i class="fas fa-box-open"></i> Inv B:</span>
                                     <span style="font-weight: 600; color: #4CAF50;">{{ product.inventory_b }}</span>
                                 </div>
-                                {% if product.category == 'ingredients' %}
                                 <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee;">
                                     <span style="color: #666;"><i class="fas fa-dollar-sign"></i> Cost:</span>
                                     <span style="font-weight: 600; color: #FF9800;">₱{{ product.cost_per_unit }}</span>
                                 </div>
-                                {% endif %}
                             </div>
+                            {% else %}
+                            <!-- For products without recipes: show message -->
+                            <div class="product-stock" style="color: #999;">
+                                <i class="fas fa-info-circle"></i> No recipe defined
+                            </div>
+                            {% endif %}
                             <!-- Action buttons for Ingredients category -->
                             {% if product.category == 'ingredients' %}
                             <div style="display: flex; gap: 8px; margin-top: 10px;">
@@ -1126,7 +1130,6 @@
                                     <i class="fas fa-trash-alt"></i> Waste
                                 </button>
                             </div>
-                            {% endif %}
                             {% endif %}
                         </div>
 
