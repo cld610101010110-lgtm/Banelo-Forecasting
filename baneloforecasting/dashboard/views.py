@@ -538,7 +538,7 @@ def inventory_view(request):
                         max_servings = 0
 
             # Get inventory data
-            inventory_a = float(product.inventory_a or product.quantity or 0)
+            inventory_a = float(product.inventory_a or product.stock or 0)
             inventory_b = float(product.inventory_b or 0)
             cost_per_unit = float(product.cost_per_unit or 0)
 
@@ -547,7 +547,7 @@ def inventory_view(request):
                 'name': product_name,
                 'price': float(product.price or 0),
                 'category': category,
-                'stock': float(product.quantity or 0),
+                'stock': float(product.stock or 0),
                 'inventory_a': inventory_a,
                 'inventory_b': inventory_b,
                 'cost_per_unit': cost_per_unit,

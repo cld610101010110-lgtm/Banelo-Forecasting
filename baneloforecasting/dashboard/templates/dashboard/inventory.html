@@ -1048,29 +1048,7 @@
 
         <!-- Product Grid -->
         <div class="product-grid" id="productGrid">
-
-            <!-- Product Grid -->
-            <div class="product-grid" id="productGrid">
-
-                <!-- 🐛 TEMPORARY DEBUG INFO - ADD THIS -->
-                <div style="background: #fff3cd; border: 2px solid #ffc107; padding: 20px; margin: 20px; border-radius: 10px; grid-column: 1 / -1;">
-                    <h3 style="color: #856404; margin-top: 0;">🐛 DEBUG INFO:</h3>
-                    <p><strong>Total products in context:</strong> {{ products|length }}</p>
-                    <p><strong>Categories found:</strong></p>
-                    <ul style="margin: 10px 0;">
-                        {% for product in products %}
-                        <li style="font-size: 12px;">
-                            {{ product.name }} -
-                            <span style="color: blue;">Category: "{{ product.category }}"</span> -
-                            Stock: {{ product.stock }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-              
-                  
-
-                    {% for product in products %}
+            {% for product in products %}
                     <div class="product-card" data-category="{{ product.category|lower }}">
                         <!-- Product Image -->
                         <div class="product-image">
@@ -1182,11 +1160,11 @@
                                 <i class="fas fa-trash-alt" style="font-size: 16px;"></i>
                             </button>
                         </div>
-                    </div>
-                    {% endfor %}
-                </div>
+            </div>
+            {% endfor %}
+        </div>
 
-                <!-- Add/Edit Product Modal -->
+        <!-- Add/Edit Product Modal -->
                 <div class="modal" id="productModal">
                     <div class="modal-content">
                         <div class="modal-header">
