@@ -1,7 +1,7 @@
 """
-Dashboard Views - PostgreSQL Version
-All Firebase calls have been replaced with Django ORM queries
-to work with the shared PostgreSQL database.
+Dashboard Views - API Version
+Business data is fetched from the Node.js API which connects to PostgreSQL.
+Django only manages authentication and sessions locally.
 """
 
 import csv
@@ -13,15 +13,12 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import update_session_auth_hash
-from django.db.models import Sum, Count, Avg, F, Q
-from django.db.models.functions import TruncDate
+from django.conf import settings
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-from .models import (
-    Product, Sale, MLPrediction, MLModel,
-    Recipe, RecipeIngredient, WasteLog, AuditTrail
-)
+# Import API service
+from .api_service import get_api_service
 
 
 # ============================================
@@ -149,9 +146,12 @@ def log_audit(action, user, details=''):
 
 @login_required
 def dashboard_view(request):
-    """Display dashboard with real-time PostgreSQL data"""
+    """Display dashboard with data from Node.js API"""
     try:
-        print("\n🔥 DASHBOARD VIEW CALLED (PostgreSQL)")
+        print("\n🔥 DASHBOARD VIEW CALLED (API Mode)")
+
+        # Get API service
+        api = get_api_service()
 
         # Get filter parameter (default: week)
         filter_type = request.GET.get('filter', 'week')
@@ -172,12 +172,12 @@ def dashboard_view(request):
             date_range_days = 7
 
         # ========================================
-        # 1. GET SALES DATA FROM POSTGRESQL
+        # 1. GET SALES DATA FROM API
         # ========================================
-        print("🔍 Fetching sales data from PostgreSQL...")
+        print("🔍 Fetching sales data from API...")
 
-        all_sales = Sale.objects.all()[:5000]
-        print(f"✅ Fetched {all_sales.count()} sales records")
+        all_sales = api.get_sales(limit=5000)
+        print(f"✅ Fetched {len(all_sales)} sales records")
 
         today_sales = 0
         yesterday_sales = 0
@@ -191,12 +191,24 @@ def dashboard_view(request):
 
         for sale in all_sales:
             try:
-                order_date = sale.order_date
+                # Parse order_date from API response (could be string or datetime)
+                order_date_raw = sale.get('order_date') or sale.get('orderDate')
+                if isinstance(order_date_raw, str):
+                    try:
+                        order_date = datetime.strptime(order_date_raw[:19], '%Y-%m-%dT%H:%M:%S')
+                    except:
+                        try:
+                            order_date = datetime.strptime(order_date_raw[:19], '%Y-%m-%d %H:%M:%S')
+                        except:
+                            order_date = None
+                else:
+                    order_date = order_date_raw
+
                 if order_date:
-                    price = float(sale.price or 0)
-                    quantity = int(sale.quantity or 0)
-                    sale_total = price * quantity if not sale.total else float(sale.total)
-                    product_name = sale.product_name or 'Unknown'
+                    price = float(sale.get('price', 0) or 0)
+                    quantity = int(sale.get('quantity', 0) or 0)
+                    sale_total = float(sale.get('total_amount') or sale.get('total') or 0) or (price * quantity)
+                    product_name = sale.get('product_name') or sale.get('productName') or 'Unknown'
 
                     # Check if within date range for charts
                     if order_date >= start_date:
@@ -287,23 +299,23 @@ def dashboard_view(request):
             chart_quantities.append(quantity)
 
         # ========================================
-        # 4. GET PRODUCT STATISTICS
+        # 4. GET PRODUCT STATISTICS FROM API
         # ========================================
-        print("🔍 Fetching product data...")
+        print("🔍 Fetching product data from API...")
 
-        products = Product.objects.all()
-        total_products = products.count()
+        products = api.get_products()
+        total_products = len(products)
         low_stock_items = 0
 
         for product in products:
-            category = (product.category or '').lower().strip()
+            category = (product.get('category', '') or '').lower().strip()
 
             # Skip beverages - they don't have physical stock
             if category in ['beverage', 'beverages', 'drink', 'drinks']:
                 continue
 
             # For non-beverage items: check quantity stock
-            stock = product.quantity or 0
+            stock = float(product.get('quantity', 0) or 0)
             reorder_level = 20  # Default reorder level
 
             # Check if low stock
@@ -383,32 +395,35 @@ def dashboard_view(request):
 
 @login_required
 def inventory_view(request):
-    """Display inventory page with PostgreSQL data"""
+    """Display inventory page with data from API"""
     try:
-        print("\n🔥 INVENTORY VIEW CALLED (PostgreSQL)")
+        print("\n🔥 INVENTORY VIEW CALLED (API Mode)")
 
-        # Get all products
-        products = Product.objects.all()
+        # Get API service
+        api = get_api_service()
 
-        # Get all recipes - index by firebase_id and product_name
-        recipes = Recipe.objects.all()
+        # Get all products from API
+        products = api.get_products()
+
+        # Get all recipes from API
+        recipes = api.get_recipes()
 
         recipes_by_id = {}
         recipes_by_name = {}
 
         for recipe in recipes:
-            product_id = recipe.product_firebase_id
-            product_name = (recipe.product_name or '').lower().strip()
+            product_id = recipe.get('product_firebase_id') or recipe.get('productFirebaseId')
+            product_name = (recipe.get('product_name') or recipe.get('productName') or '').lower().strip()
 
             recipe_info = {
-                'recipeId': recipe.id,
-                'firebaseId': recipe.firebase_id,
-                'productName': recipe.product_name
+                'recipeId': recipe.get('id'),
+                'firebaseId': recipe.get('firebase_id') or recipe.get('firebaseId'),
+                'productName': recipe.get('product_name') or recipe.get('productName')
             }
 
             if product_id:
                 recipes_by_id[product_id] = recipe_info
-                print(f"📋 Recipe found by ID: {product_id} -> {recipe.product_name}")
+                print(f"📋 Recipe found by ID: {product_id} -> {recipe_info['productName']}")
 
             if product_name:
                 recipes_by_name[product_name] = recipe_info
@@ -424,7 +439,7 @@ def inventory_view(request):
             doc_count += 1
 
             # Normalize category
-            raw_category = product.category or 'Unknown'
+            raw_category = product.get('category', 'Unknown') or 'Unknown'
             category_lower = str(raw_category).lower().strip()
 
             if category_lower in ['beverage', 'beverages', 'drink', 'drinks', 'hot drinks', 'cold drinks']:
@@ -437,7 +452,7 @@ def inventory_view(request):
                 category = category_lower
 
             # Handle image
-            image_raw = product.image_uri
+            image_raw = product.get('image_uri') or product.get('imageUri')
             image = None
 
             if image_raw and str(image_raw) not in ['nan', 'None', '']:
@@ -460,33 +475,34 @@ def inventory_view(request):
             # Calculate max servings for beverages and pastries with recipes
             max_servings = None
             recipe_found = False
-            firebase_id = product.firebase_id or ''
+            firebase_id = product.get('firebase_id') or product.get('firebaseId') or ''
+            product_name = product.get('name', 'Unknown')
 
             if category in ['beverage', 'pastries']:
                 # Try matching by Firebase ID first
                 if firebase_id in recipes_by_id:
                     recipe_found = True
-                    max_servings = calculate_max_servings(firebase_id, recipes_by_id[firebase_id]['recipeId'])
-                    print(f"✅ Recipe matched by ID for: {product.name}")
+                    # Note: max_servings calculation would need API call or be done server-side
+                    max_servings = None  # Will be calculated via API if needed
+                    print(f"✅ Recipe matched by ID for: {product_name}")
 
                 # If not found, try matching by product name
-                elif (product.name or '').lower().strip() in recipes_by_name:
+                elif product_name.lower().strip() in recipes_by_name:
                     recipe_found = True
-                    product_name_key = (product.name or '').lower().strip()
-                    max_servings = calculate_max_servings(firebase_id, recipes_by_name[product_name_key]['recipeId'])
-                    print(f"✅ Recipe matched by NAME for: {product.name}")
+                    max_servings = None  # Will be calculated via API if needed
+                    print(f"✅ Recipe matched by NAME for: {product_name}")
 
             # Get inventory data
-            inventory_a = product.inventory_a or product.quantity or 0
-            inventory_b = product.inventory_b or 0
-            cost_per_unit = product.cost_per_unit or 0
+            inventory_a = float(product.get('inventory_a') or product.get('inventoryA') or product.get('quantity', 0) or 0)
+            inventory_b = float(product.get('inventory_b') or product.get('inventoryB') or 0)
+            cost_per_unit = float(product.get('cost_per_unit') or product.get('costPerUnit') or 0)
 
             products_data.append({
-                'id': firebase_id or str(product.id),
-                'name': product.name or 'Unknown',
-                'price': product.price or 0,
+                'id': firebase_id or str(product.get('id', '')),
+                'name': product_name,
+                'price': float(product.get('price', 0) or 0),
                 'category': category,
-                'stock': product.quantity or 0,
+                'stock': float(product.get('quantity', 0) or 0),
                 'inventory_a': inventory_a,
                 'inventory_b': inventory_b,
                 'cost_per_unit': cost_per_unit,
@@ -528,38 +544,45 @@ def settings_view(request):
 
 @login_required
 def sales_view(request):
-    """Display sales page with PostgreSQL data"""
+    """Display sales page with data from API"""
     try:
-        print("\n🔥 SALES VIEW CALLED (PostgreSQL)")
+        print("\n🔥 SALES VIEW CALLED (API Mode)")
 
-        # Query PostgreSQL sales
-        sales = Sale.objects.all().order_by('-order_date')[:1000]
+        # Get API service
+        api = get_api_service()
+
+        # Get sales from API
+        sales = api.get_sales(limit=1000)
 
         # Process sales data
         sales_data = []
         total_sales = 0
 
         for sale in sales:
-            price = float(sale.price or 0)
-            quantity = int(sale.quantity or 0)
-            sale_total = float(sale.total) if sale.total else price * quantity
+            price = float(sale.get('price', 0) or 0)
+            quantity = int(sale.get('quantity', 0) or 0)
+            sale_total = float(sale.get('total_amount') or sale.get('total') or 0) or (price * quantity)
 
-            order_date = sale.order_date
-            date_only = order_date.strftime('%Y-%m-%d') if order_date else 'N/A'
+            # Parse order_date
+            order_date_raw = sale.get('order_date') or sale.get('orderDate')
+            if isinstance(order_date_raw, str):
+                date_only = order_date_raw[:10] if order_date_raw else 'N/A'
+            else:
+                date_only = order_date_raw.strftime('%Y-%m-%d') if order_date_raw else 'N/A'
 
             sales_data.append({
-                'id': sale.id,
+                'id': sale.get('id'),
                 'date': date_only,
-                'product': sale.product_name or 'Unknown',
+                'product': sale.get('product_name') or sale.get('productName') or 'Unknown',
                 'quantity': quantity,
                 'unit_price': price,
                 'total': sale_total,
-                'category': sale.category or 'Uncategorized'
+                'category': sale.get('category') or 'Uncategorized'
             })
 
             total_sales += sale_total
 
-        print(f"✅ Loaded {len(sales_data)} sales from PostgreSQL")
+        print(f"✅ Loaded {len(sales_data)} sales from API")
         print(f"✅ Total sales: ₱{total_sales:.2f}")
 
         context = {
@@ -873,33 +896,40 @@ def api_sales(request):
 
 @login_required
 def database_health_check(request):
-    """Check PostgreSQL database connection health"""
+    """Check API connection health"""
     try:
-        from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
+        api = get_api_service()
+        health = api.health_check()
 
-        # Get counts
-        products_count = Product.objects.count()
-        sales_count = Sale.objects.count()
-        recipes_count = Recipe.objects.count()
+        if health['status'] == 'healthy':
+            # Get counts from API
+            products = api.get_products()
+            sales = api.get_sales(limit=1)
+            recipes = api.get_recipes()
 
-        return JsonResponse({
-            'status': 'healthy',
-            'database': 'PostgreSQL',
-            'message': 'Database connection is working',
-            'counts': {
-                'products': products_count,
-                'sales': sales_count,
-                'recipes': recipes_count,
-            }
-        })
+            return JsonResponse({
+                'status': 'healthy',
+                'connection': 'Node.js API',
+                'api_url': health['api_url'],
+                'message': 'API connection is working',
+                'counts': {
+                    'products': len(products),
+                    'sales': 'Available',
+                    'recipes': len(recipes),
+                }
+            })
+        else:
+            return JsonResponse({
+                'status': 'unhealthy',
+                'connection': 'Node.js API',
+                'api_url': health['api_url'],
+                'message': health['message'],
+            }, status=500)
 
     except Exception as e:
         return JsonResponse({
             'status': 'unhealthy',
-            'database': 'PostgreSQL',
+            'connection': 'Node.js API',
             'message': str(e),
         }, status=500)
 

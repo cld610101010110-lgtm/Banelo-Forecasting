@@ -83,20 +83,26 @@ WSGI_APPLICATION = 'baneloforecasting.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# PostgreSQL Configuration (shared with Mobile POS)
+# SQLite for Django's internal tables (auth, sessions, etc.)
+# Business data (products, sales, etc.) comes from the Node.js API
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'banelo_db'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'admin123'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'OPTIONS': {
-            'connect_timeout': 10,
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# ========================================
+# NODE.JS API CONFIGURATION
+# ========================================
+# The website fetches business data from the Node.js API
+# which connects to the shared PostgreSQL database
+
+# API Base URL - Update this to your Mobile POS laptop's IP
+# For same machine: http://localhost:3000
+# For network: http://192.168.x.x:3000 (Mobile POS laptop IP)
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:3000')
+API_TIMEOUT = int(os.getenv('API_TIMEOUT', '30'))
 
 
 # Password validation
