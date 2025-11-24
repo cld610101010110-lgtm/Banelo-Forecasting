@@ -16,8 +16,12 @@ from django.contrib.auth import update_session_auth_hash
 from django.conf import settings
 from datetime import datetime, timedelta
 from collections import defaultdict
+from django.db.models import Q
 
-# Import API service
+# Import models
+from .models import Product, Sale, Recipe, RecipeIngredient, AuditTrail, WasteLog, MLPrediction, MLModel
+
+# Import API service (fallback)
 from .api_service import get_api_service
 
 
@@ -146,12 +150,9 @@ def log_audit(action, user, details=''):
 
 @login_required
 def dashboard_view(request):
-    """Display dashboard with data from Node.js API"""
+    """Display dashboard with data from PostgreSQL via Django ORM"""
     try:
-        print("\n🔥 DASHBOARD VIEW CALLED (API Mode)")
-
-        # Get API service
-        api = get_api_service()
+        print("\n🔥 DASHBOARD VIEW CALLED (Django ORM Mode)")
 
         # Get filter parameter (default: week)
         filter_type = request.GET.get('filter', 'week')
@@ -172,12 +173,12 @@ def dashboard_view(request):
             date_range_days = 7
 
         # ========================================
-        # 1. GET SALES DATA FROM API
+        # 1. GET SALES DATA FROM POSTGRESQL
         # ========================================
-        print("🔍 Fetching sales data from API...")
+        print("🔍 Fetching sales data from PostgreSQL...")
 
-        all_sales = api.get_sales(limit=5000)
-        print(f"✅ Fetched {len(all_sales)} sales records")
+        all_sales = Sale.objects.all().order_by('-order_date')[:5000]
+        print(f"✅ Fetched {all_sales.count()} sales records")
 
         today_sales = 0
         yesterday_sales = 0
@@ -191,24 +192,12 @@ def dashboard_view(request):
 
         for sale in all_sales:
             try:
-                # Parse order_date from API response (could be string or datetime)
-                order_date_raw = sale.get('order_date') or sale.get('orderDate')
-                if isinstance(order_date_raw, str):
-                    try:
-                        order_date = datetime.strptime(order_date_raw[:19], '%Y-%m-%dT%H:%M:%S')
-                    except:
-                        try:
-                            order_date = datetime.strptime(order_date_raw[:19], '%Y-%m-%d %H:%M:%S')
-                        except:
-                            order_date = None
-                else:
-                    order_date = order_date_raw
-
+                order_date = sale.order_date
                 if order_date:
-                    price = float(sale.get('price', 0) or 0)
-                    quantity = int(sale.get('quantity', 0) or 0)
-                    sale_total = float(sale.get('total_amount') or sale.get('total') or 0) or (price * quantity)
-                    product_name = sale.get('product_name') or sale.get('productName') or 'Unknown'
+                    price = float(sale.price or 0)
+                    quantity = int(sale.quantity or 0)
+                    sale_total = float(sale.total or 0) or (price * quantity)
+                    product_name = sale.product_name or 'Unknown'
 
                     # Check if within date range for charts
                     if order_date >= start_date:
@@ -299,23 +288,23 @@ def dashboard_view(request):
             chart_quantities.append(quantity)
 
         # ========================================
-        # 4. GET PRODUCT STATISTICS FROM API
+        # 4. GET PRODUCT STATISTICS FROM POSTGRESQL
         # ========================================
-        print("🔍 Fetching product data from API...")
+        print("🔍 Fetching product data from PostgreSQL...")
 
-        products = api.get_products()
-        total_products = len(products)
+        products = Product.objects.all()
+        total_products = products.count()
         low_stock_items = 0
 
         for product in products:
-            category = (product.get('category', '') or '').lower().strip()
+            category = (product.category or '').lower().strip()
 
             # Skip beverages - they don't have physical stock
             if category in ['beverage', 'beverages', 'drink', 'drinks']:
                 continue
 
             # For non-beverage items: check quantity stock
-            stock = float(product.get('quantity', 0) or 0)
+            stock = float(product.quantity or 0)
             reorder_level = 20  # Default reorder level
 
             # Check if low stock
@@ -395,33 +384,47 @@ def dashboard_view(request):
 
 @login_required
 def inventory_view(request):
-    """Display inventory page with data from API"""
+    """Display inventory page with data from PostgreSQL via Django ORM"""
     try:
-        print("\n🔥 INVENTORY VIEW CALLED (API Mode)")
+        print("\n🔥 INVENTORY VIEW CALLED (Django ORM Mode)")
 
-        # Get API service
-        api = get_api_service()
+        # Get all products from PostgreSQL
+        products_queryset = Product.objects.all()
 
-        # Get all products from API
-        products = api.get_products()
-
-        # Get all recipes from API
-        recipes = api.get_recipes()
+        # Get all recipes from PostgreSQL
+        recipes_queryset = Recipe.objects.all()
 
         recipes_by_id = {}
         recipes_by_name = {}
-        recipe_ingredients_map = {}  # Store ingredients for each recipe
 
-        for recipe in recipes:
-            product_id = recipe.get('product_firebase_id') or recipe.get('productFirebaseId')
-            product_name = (recipe.get('product_name') or recipe.get('productName') or '').lower().strip()
-            recipe_id = recipe.get('id')
+        for recipe in recipes_queryset:
+            product_id = recipe.product_firebase_id or ''
+            product_name = (recipe.product_name or '').lower().strip()
+            recipe_id = recipe.id
+
+            # Get ingredients for this recipe
+            ingredients_queryset = RecipeIngredient.objects.filter(
+                Q(recipe_id=recipe.id) | Q(recipe_firebase_id=recipe.firebase_id)
+            )
+            ingredients_list = []
+            for ing in ingredients_queryset:
+                ingredients_list.append({
+                    'ingredient_firebase_id': ing.ingredient_firebase_id,
+                    'ingredientFirebaseId': ing.ingredient_firebase_id,
+                    'ingredient_name': ing.ingredient_name,
+                    'ingredientName': ing.ingredient_name,
+                    'quantity_needed': ing.quantity_needed,
+                    'quantityNeeded': ing.quantity_needed,
+                    'quantity': ing.quantity_needed,
+                    'unit': ing.unit or 'g',
+                    'name': ing.ingredient_name,
+                })
 
             recipe_info = {
                 'recipeId': recipe_id,
-                'firebaseId': recipe.get('firebase_id') or recipe.get('firebaseId'),
-                'productName': recipe.get('product_name') or recipe.get('productName'),
-                'ingredients': recipe.get('ingredients', [])  # Get ingredients from recipe
+                'firebaseId': recipe.firebase_id,
+                'productName': recipe.product_name,
+                'ingredients': ingredients_list
             }
 
             if product_id:
@@ -432,22 +435,14 @@ def inventory_view(request):
                 recipes_by_name[product_name] = recipe_info
                 print(f"📋 Recipe found by Name: {product_name}")
 
-            # Also fetch ingredients if not included in recipe data
-            if recipe_id and not recipe_info['ingredients']:
-                try:
-                    ingredients = api.get_recipe_ingredients(recipe_id)
-                    recipe_info['ingredients'] = ingredients
-                except:
-                    pass
-
         print(f"✅ Found {len(recipes_by_id)} recipes by ID, {len(recipes_by_name)} by name")
 
         # Build ingredient inventory lookup (firebase_id -> inventory_b)
         ingredient_stock_lookup = {}
-        for product in products:
-            fb_id = product.get('firebase_id') or product.get('firebaseId') or ''
+        for product in products_queryset:
+            fb_id = product.firebase_id or ''
             # Use inventory_b (expendable stock) for calculating available servings
-            inv_b = float(product.get('inventory_b') or product.get('inventoryB') or 0)
+            inv_b = float(product.inventory_b or 0)
             if fb_id:
                 ingredient_stock_lookup[fb_id] = inv_b
 
@@ -455,11 +450,11 @@ def inventory_view(request):
         products_data = []
         doc_count = 0
 
-        for product in products:
+        for product in products_queryset:
             doc_count += 1
 
             # Normalize category
-            raw_category = product.get('category', 'Unknown') or 'Unknown'
+            raw_category = product.category or 'Unknown'
             category_lower = str(raw_category).lower().strip()
 
             if category_lower in ['beverage', 'beverages', 'drink', 'drinks', 'hot drinks', 'cold drinks']:
@@ -472,7 +467,7 @@ def inventory_view(request):
                 category = category_lower
 
             # Handle image
-            image_raw = product.get('image_uri') or product.get('imageUri')
+            image_raw = product.image_uri
             image = None
 
             if image_raw and str(image_raw) not in ['nan', 'None', '']:
@@ -495,8 +490,8 @@ def inventory_view(request):
             # Calculate max servings for beverages and pastries with recipes
             max_servings = None
             recipe_found = False
-            firebase_id = product.get('firebase_id') or product.get('firebaseId') or ''
-            product_name = product.get('name', 'Unknown')
+            firebase_id = product.firebase_id or ''
+            product_name = product.name or 'Unknown'
 
             if category in ['beverage', 'pastries']:
                 recipe_info = None
@@ -543,16 +538,16 @@ def inventory_view(request):
                         max_servings = 0
 
             # Get inventory data
-            inventory_a = float(product.get('inventory_a') or product.get('inventoryA') or product.get('quantity', 0) or 0)
-            inventory_b = float(product.get('inventory_b') or product.get('inventoryB') or 0)
-            cost_per_unit = float(product.get('cost_per_unit') or product.get('costPerUnit') or 0)
+            inventory_a = float(product.inventory_a or product.quantity or 0)
+            inventory_b = float(product.inventory_b or 0)
+            cost_per_unit = float(product.cost_per_unit or 0)
 
             products_data.append({
-                'id': firebase_id or str(product.get('id', '')),
+                'id': firebase_id or str(product.id),
                 'name': product_name,
-                'price': float(product.get('price', 0) or 0),
+                'price': float(product.price or 0),
                 'category': category,
-                'stock': float(product.get('quantity', 0) or 0),
+                'stock': float(product.quantity or 0),
                 'inventory_a': inventory_a,
                 'inventory_b': inventory_b,
                 'cost_per_unit': cost_per_unit,
@@ -594,45 +589,39 @@ def settings_view(request):
 
 @login_required
 def sales_view(request):
-    """Display sales page with data from API"""
+    """Display sales page with data from PostgreSQL via Django ORM"""
     try:
-        print("\n🔥 SALES VIEW CALLED (API Mode)")
+        print("\n🔥 SALES VIEW CALLED (Django ORM Mode)")
 
-        # Get API service
-        api = get_api_service()
-
-        # Get sales from API
-        sales = api.get_sales(limit=1000)
+        # Get sales from PostgreSQL
+        sales_queryset = Sale.objects.all().order_by('-order_date')[:1000]
 
         # Process sales data
         sales_data = []
         total_sales = 0
 
-        for sale in sales:
-            price = float(sale.get('price', 0) or 0)
-            quantity = int(sale.get('quantity', 0) or 0)
-            sale_total = float(sale.get('total_amount') or sale.get('total') or 0) or (price * quantity)
+        for sale in sales_queryset:
+            price = float(sale.price or 0)
+            quantity = int(sale.quantity or 0)
+            sale_total = float(sale.total or 0) or (price * quantity)
 
             # Parse order_date
-            order_date_raw = sale.get('order_date') or sale.get('orderDate')
-            if isinstance(order_date_raw, str):
-                date_only = order_date_raw[:10] if order_date_raw else 'N/A'
-            else:
-                date_only = order_date_raw.strftime('%Y-%m-%d') if order_date_raw else 'N/A'
+            order_date = sale.order_date
+            date_only = order_date.strftime('%Y-%m-%d') if order_date else 'N/A'
 
             sales_data.append({
-                'id': sale.get('id'),
+                'id': sale.id,
                 'date': date_only,
-                'product': sale.get('product_name') or sale.get('productName') or 'Unknown',
+                'product': sale.product_name or 'Unknown',
                 'quantity': quantity,
                 'unit_price': price,
                 'total': sale_total,
-                'category': sale.get('category') or 'Uncategorized'
+                'category': sale.category or 'Uncategorized'
             })
 
             total_sales += sale_total
 
-        print(f"✅ Loaded {len(sales_data)} sales from API")
+        print(f"✅ Loaded {len(sales_data)} sales from PostgreSQL")
         print(f"✅ Total sales: ₱{total_sales:.2f}")
 
         context = {
