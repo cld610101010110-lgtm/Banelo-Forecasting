@@ -384,47 +384,34 @@ def dashboard_view(request):
 
 @login_required
 def inventory_view(request):
-    """Display inventory page with data from PostgreSQL via Django ORM"""
+    """Display inventory page with data from Node.js API (PostgreSQL)"""
     try:
-        print("\n🔥 INVENTORY VIEW CALLED (Django ORM Mode)")
+        print("\n🔥 INVENTORY VIEW CALLED (Node.js API Mode)")
 
-        # Get all products from PostgreSQL
-        products_queryset = Product.objects.all()
+        # Get API service
+        api = get_api_service()
 
-        # Get all recipes from PostgreSQL
-        recipes_queryset = Recipe.objects.all()
+        # Get all products from API
+        products_list = api.get_products()
+        print(f"✅ Fetched {len(products_list)} products from API")
 
+        # Get all recipes from API
+        recipes_list = api.get_recipes()
+        print(f"✅ Fetched {len(recipes_list)} recipes from API")
+
+        # Build recipe lookup dictionaries
         recipes_by_id = {}
         recipes_by_name = {}
 
-        for recipe in recipes_queryset:
-            product_id = recipe.product_firebase_id or ''
-            product_name = (recipe.product_name or '').lower().strip()
-            recipe_id = recipe.id
-
-            # Get ingredients for this recipe
-            ingredients_queryset = RecipeIngredient.objects.filter(
-                Q(recipe_id=recipe.id) | Q(recipe_firebase_id=recipe.firebase_id)
-            )
-            ingredients_list = []
-            for ing in ingredients_queryset:
-                ingredients_list.append({
-                    'ingredient_firebase_id': ing.ingredient_firebase_id,
-                    'ingredientFirebaseId': ing.ingredient_firebase_id,
-                    'ingredient_name': ing.ingredient_name,
-                    'ingredientName': ing.ingredient_name,
-                    'quantity_needed': ing.quantity_needed,
-                    'quantityNeeded': ing.quantity_needed,
-                    'quantity': ing.quantity_needed,
-                    'unit': ing.unit or 'g',
-                    'name': ing.ingredient_name,
-                })
+        for recipe in recipes_list:
+            product_id = recipe.get('productFirebaseId') or recipe.get('product_firebase_id') or ''
+            product_name = (recipe.get('productName') or recipe.get('product_name') or '').lower().strip()
 
             recipe_info = {
-                'recipeId': recipe_id,
-                'firebaseId': recipe.firebase_id,
-                'productName': recipe.product_name,
-                'ingredients': ingredients_list
+                'recipeId': recipe.get('id') or recipe.get('recipeId'),
+                'firebaseId': recipe.get('firebaseId') or recipe.get('firebase_id'),
+                'productName': recipe.get('productName') or recipe.get('product_name'),
+                'ingredients': recipe.get('ingredients', [])
             }
 
             if product_id:
@@ -433,28 +420,24 @@ def inventory_view(request):
 
             if product_name:
                 recipes_by_name[product_name] = recipe_info
-                print(f"📋 Recipe found by Name: {product_name}")
 
         print(f"✅ Found {len(recipes_by_id)} recipes by ID, {len(recipes_by_name)} by name")
 
         # Build ingredient inventory lookup (firebase_id -> inventory_b)
         ingredient_stock_lookup = {}
-        for product in products_queryset:
-            fb_id = product.firebase_id or ''
-            # Use inventory_b (expendable stock) for calculating available servings
-            inv_b = float(product.inventory_b or 0)
+        for product in products_list:
+            fb_id = product.get('firebaseId') or product.get('firebase_id') or product.get('id', '')
+            # Use inventoryB (expendable stock) for calculating available servings
+            inv_b = float(product.get('inventoryB') or product.get('inventory_b') or 0)
             if fb_id:
                 ingredient_stock_lookup[fb_id] = inv_b
 
         # Process products data
         products_data = []
-        doc_count = 0
 
-        for product in products_queryset:
-            doc_count += 1
-
+        for product in products_list:
             # Normalize category
-            raw_category = product.category or 'Unknown'
+            raw_category = product.get('category') or 'Unknown'
             category_lower = str(raw_category).lower().strip()
 
             if category_lower in ['beverage', 'beverages', 'drink', 'drinks', 'hot drinks', 'cold drinks']:
@@ -467,7 +450,7 @@ def inventory_view(request):
                 category = category_lower
 
             # Handle image
-            image_raw = product.image_uri
+            image_raw = product.get('imageUri') or product.get('image_uri') or product.get('image')
             image = None
 
             if image_raw and str(image_raw) not in ['nan', 'None', '']:
@@ -490,8 +473,8 @@ def inventory_view(request):
             # Calculate max servings for beverages and pastries with recipes
             max_servings = None
             recipe_found = False
-            firebase_id = product.firebase_id or ''
-            product_name = product.name or 'Unknown'
+            firebase_id = product.get('firebaseId') or product.get('firebase_id') or product.get('id', '')
+            product_name = product.get('name') or 'Unknown'
 
             if category in ['beverage', 'pastries']:
                 recipe_info = None
@@ -514,10 +497,14 @@ def inventory_view(request):
                     if ingredients:
                         servings_list = []
                         for ing in ingredients:
-                            # Get ingredient firebase ID
-                            ing_fb_id = ing.get('ingredient_firebase_id') or ing.get('ingredientFirebaseId') or ing.get('id', '')
+                            # Get ingredient firebase ID (support both camelCase and snake_case)
+                            ing_fb_id = (ing.get('ingredientFirebaseId') or
+                                        ing.get('ingredient_firebase_id') or
+                                        ing.get('id', ''))
                             # Get quantity needed per serving
-                            qty_needed = float(ing.get('quantity_needed') or ing.get('quantityNeeded') or ing.get('quantity', 0) or 0)
+                            qty_needed = float(ing.get('quantityNeeded') or
+                                              ing.get('quantity_needed') or
+                                              ing.get('quantity', 0) or 0)
 
                             if ing_fb_id and qty_needed > 0:
                                 # Get available stock from inventory_b (expendable stock)
@@ -525,7 +512,8 @@ def inventory_view(request):
                                 # Calculate max servings from this ingredient
                                 max_from_ing = int(available_stock / qty_needed)
                                 servings_list.append(max_from_ing)
-                                print(f"   📦 {ing.get('ingredient_name') or ing.get('ingredientName') or ing.get('name', 'Unknown')}: {available_stock}/{qty_needed} = {max_from_ing} servings")
+                                ing_name = ing.get('ingredientName') or ing.get('ingredient_name') or ing.get('name', 'Unknown')
+                                print(f"   📦 {ing_name}: {available_stock}/{qty_needed} = {max_from_ing} servings")
 
                         # Max servings is limited by the bottleneck ingredient
                         if servings_list:
@@ -537,17 +525,17 @@ def inventory_view(request):
                         # Has recipe but no ingredients defined
                         max_servings = 0
 
-            # Get inventory data
-            inventory_a = float(product.inventory_a or product.quantity or 0)
-            inventory_b = float(product.inventory_b or 0)
-            cost_per_unit = float(product.cost_per_unit or 0)
+            # Get inventory data (support both camelCase and snake_case from API)
+            inventory_a = float(product.get('inventoryA') or product.get('inventory_a') or product.get('stock') or 0)
+            inventory_b = float(product.get('inventoryB') or product.get('inventory_b') or 0)
+            cost_per_unit = float(product.get('costPerUnit') or product.get('cost_per_unit') or 0)
 
             products_data.append({
-                'id': firebase_id or str(product.id),
+                'id': firebase_id or str(product.get('id', '')),
                 'name': product_name,
-                'price': float(product.price or 0),
+                'price': float(product.get('price') or 0),
                 'category': category,
-                'stock': float(product.quantity or 0),
+                'stock': float(product.get('stock') or product.get('quantity') or 0),
                 'inventory_a': inventory_a,
                 'inventory_b': inventory_b,
                 'cost_per_unit': cost_per_unit,
@@ -561,7 +549,7 @@ def inventory_view(request):
         products_data.sort(key=lambda x: x['name'])
 
         print(f"\n{'=' * 60}")
-        print(f"✅ LOADED {len(products_data)} PRODUCTS FROM POSTGRESQL")
+        print(f"✅ LOADED {len(products_data)} PRODUCTS FROM API")
         print(f"{'=' * 60}")
 
         context = {
@@ -577,6 +565,7 @@ def inventory_view(request):
 
         context = {
             'products': [],
+            'error_message': f'Unable to connect to API: {str(e)}. Make sure the Node.js API is running on {api.base_url if "api" in dir() else "localhost:3000"}'
         }
         return render(request, 'dashboard/inventory.html', context)
 
